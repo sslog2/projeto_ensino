@@ -4,6 +4,9 @@
 
 Uma plataforma educacional gamificada para ensino de lógica de programação, com dashboards diferenciados para alunos e professores.
 
+## Time
+José Liedson da Silva, José Matheus Mendonça Farias, Márcio Souto Maior Sousa, Maria Clara Lau Santos
+
 ## Figma
 https://www.figma.com/design/FzDK08KsimtBFhY1TJ1JNb/Collage-Editor-Design
 
