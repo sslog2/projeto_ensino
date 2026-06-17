@@ -1,56 +1,117 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Users, Copy, Edit, Trash2, Check } from 'lucide-react';
+import { ArrowLeft, Plus, Users, Copy, Edit, Trash2, Check, Loader2, Target } from 'lucide-react';
+import { supabase } from '../supabaseClient';
+import { useAuth } from '../contexts/AuthContext';
+
+interface Turma {
+  id: string;
+  nome: string;
+  codigo: string;
+  alunos_count?: number;
+  meta_pontos?: number;
+  created_at: string;
+}
 
 export function GerenciamentoTurmas() {
+  const { user } = useAuth();
+  const [turmas, setTurmas] = useState<Turma[]>([]);
+  const [loading, setLoading] = useState(true);
   const [mostrarModal, setMostrarModal] = useState(false);
   const [nomeTurma, setNomeTurma] = useState('');
+  const [metaPontosTurma, setMetaPontosTurma] = useState('500');
   const [copiado, setCopiado] = useState<string | null>(null);
+  const [criando, setCriando] = useState(false);
 
-  const turmas = [
-    {
-      id: 1,
-      nome: '7º Ano A',
-      codigo: 'TURMA2024A',
-      alunos: 28,
-      ativa: true,
-      dataCriacao: '01/02/2024',
-      metaSemanal: 85
-    },
-    {
-      id: 2,
-      nome: '7º Ano B',
-      codigo: 'TURMA2024B',
-      alunos: 25,
-      ativa: true,
-      dataCriacao: '01/02/2024',
-      metaSemanal: 72
-    },
-    {
-      id: 3,
-      nome: '8º Ano A',
-      codigo: 'TURMA2024C',
-      alunos: 30,
-      ativa: true,
-      dataCriacao: '01/02/2024',
-      metaSemanal: 91
-    },
-    {
-      id: 4,
-      nome: '6º Ano C (2023)',
-      codigo: 'TURMA2023D',
-      alunos: 22,
-      ativa: false,
-      dataCriacao: '01/02/2023',
-      metaSemanal: 0
+  useEffect(() => {
+    if (user) {
+      fetchTurmas();
     }
-  ];
+  }, [user]);
 
-  const criarTurma = (e: React.FormEvent) => {
+  const fetchTurmas = async () => {
+    try {
+      setLoading(true);
+      
+      // Buscar turmas e contar alunos (usando join ou count)
+      const { data, error } = await supabase
+        .from('turmas')
+        .select(`
+          *,
+          alunos_turmas(count)
+        `)
+        .eq('professor_id', user?.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const turmasFormatadas = data.map((t: any) => ({
+        ...t,
+        alunos: t.alunos_turmas[0]?.count || 0
+      }));
+
+      setTurmas(turmasFormatadas);
+    } catch (error) {
+      console.error('Erro ao buscar turmas:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const gerarCodigo = () => {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+  };
+
+  const criarTurma = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Lógica de criar turma
-    setMostrarModal(false);
-    setNomeTurma('');
+    if (!user) return;
+
+    try {
+      setCriando(true);
+      const novoCodigo = gerarCodigo();
+
+      const { data, error } = await supabase
+        .from('turmas')
+        .insert([
+          {
+            nome: nomeTurma,
+            codigo: novoCodigo,
+            professor_id: user.id,
+            meta_pontos: parseInt(metaPontosTurma) || 500
+          }
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setTurmas([data, ...turmas]);
+      setMostrarModal(false);
+      setNomeTurma('');
+      setMetaPontosTurma('500');
+    } catch (error) {
+      console.error('Erro ao criar turma:', error);
+      alert('Erro ao criar turma. Tente novamente.');
+    } finally {
+      setCriando(false);
+    }
+  };
+
+  const deletarTurma = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir esta turma?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('turmas')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setTurmas(turmas.filter(t => t.id !== id));
+    } catch (error) {
+      console.error('Erro ao deletar turma:', error);
+    }
   };
 
   const copiarCodigo = (codigo: string) => {
@@ -74,7 +135,7 @@ export function GerenciamentoTurmas() {
             </div>
             <button
               onClick={() => setMostrarModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="btn-nova-turma flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               <Plus className="w-5 h-5" />
               Nova Turma
@@ -84,38 +145,47 @@ export function GerenciamentoTurmas() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Turmas Ativas */}
-        <div className="mb-8">
-          <h2 className="text-gray-800 mb-4">Turmas Ativas</h2>
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+          </div>
+        ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {turmas.filter(t => t.ativa).map((turma) => (
+            {turmas.map((turma) => (
               <div key={turma.id} className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all">
                 <div className="flex items-start justify-between mb-4">
                   <div>
                     <h3 className="text-gray-800 mb-1">{turma.nome}</h3>
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <Users className="w-4 h-4" />
-                      <span>{turma.alunos} alunos</span>
+                    <div className="flex items-center gap-4 text-gray-600">
+                      <div className="flex items-center gap-1">
+                        <Users className="w-4 h-4" />
+                        <span>{(turma as any).alunos || 0} alunos</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Target className="w-4 h-4 text-blue-500" />
+                        <span>{turma.meta_pontos || 500} pts/aluno</span>
+                      </div>
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                    <button 
+                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" 
+                      onClick={() => deletarTurma(turma.id)}
+                      aria-label={`Excluir turma ${turma.nome}`}
+                    >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
 
-                {/* Código da Turma */}
                 <div className="bg-gray-50 rounded-lg p-3 mb-4">
                   <p className="text-gray-600 mb-1">Código de Acesso</p>
                   <div className="flex items-center justify-between">
-                    <code className="text-blue-600">{turma.codigo}</code>
+                    <code className="text-blue-600 font-bold">{turma.codigo}</code>
                     <button
                       onClick={() => copiarCodigo(turma.codigo)}
                       className="p-1 text-gray-600 hover:text-blue-600 transition-colors"
+                      aria-label={`Copiar código da turma ${turma.nome}`}
                     >
                       {copiado === turma.codigo ? (
                         <Check className="w-4 h-4 text-green-600" />
@@ -126,66 +196,30 @@ export function GerenciamentoTurmas() {
                   </div>
                 </div>
 
-                {/* Meta Semanal */}
-                <div className="mb-4">
-                  <div className="flex justify-between text-gray-600 mb-2">
-                    <span>Meta Semanal</span>
-                    <span>{turma.metaSemanal}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className={`h-2 rounded-full transition-all ${
-                        turma.metaSemanal >= 80 ? 'bg-green-500' : 
-                        turma.metaSemanal >= 60 ? 'bg-yellow-500' : 
-                        'bg-red-500'
-                      }`}
-                      style={{ width: `${turma.metaSemanal}%` }}
-                    />
-                  </div>
-                </div>
-
                 <Link
                   to={`/turma/${turma.id}`}
                   className="block w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-center"
+                  aria-label={`Ver detalhes da turma ${turma.nome}`}
                 >
                   Ver Detalhes
                 </Link>
               </div>
             ))}
-          </div>
-        </div>
 
-        {/* Turmas Arquivadas */}
-        {turmas.filter(t => !t.ativa).length > 0 && (
-          <div>
-            <h2 className="text-gray-800 mb-4">Turmas Arquivadas</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {turmas.filter(t => !t.ativa).map((turma) => (
-                <div key={turma.id} className="bg-white rounded-xl shadow-lg p-6 opacity-75">
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h3 className="text-gray-800 mb-1">{turma.nome}</h3>
-                      <div className="flex items-center gap-2 text-gray-600">
-                        <Users className="w-4 h-4" />
-                        <span>{turma.alunos} alunos</span>
-                      </div>
-                    </div>
-                    <span className="px-2 py-1 bg-gray-200 text-gray-600 text-xs rounded-full">
-                      Arquivada
-                    </span>
-                  </div>
-
-                  <p className="text-gray-600 mb-4">Criada em {turma.dataCriacao}</p>
-
-                  <Link
-                    to={`/turma/${turma.id}`}
-                    className="block w-full py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors text-center"
-                  >
-                    Ver Histórico
-                  </Link>
-                </div>
-              ))}
-            </div>
+            {turmas.length === 0 && (
+              <div className="col-span-full bg-white rounded-xl p-12 text-center border-2 border-dashed border-gray-300">
+                <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-gray-800 mb-2">Nenhuma turma criada</h3>
+                <p className="text-gray-600 mb-6">Comece criando sua primeira turma para gerenciar seus alunos.</p>
+                <button
+                  onClick={() => setMostrarModal(true)}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <Plus className="w-5 h-5" />
+                  Criar minha primeira turma
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -209,10 +243,23 @@ export function GerenciamentoTurmas() {
                 />
               </div>
 
+              <div>
+                <label className="block text-gray-700 mb-2">Meta de Pontos (por aluno)</label>
+                <input
+                  type="number"
+                  value={metaPontosTurma}
+                  onChange={(e) => setMetaPontosTurma(e.target.value)}
+                  placeholder="500"
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
+                  min="100"
+                  required
+                />
+              </div>
+
               <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
                 <p className="text-blue-800 mb-2">ℹ️ Código de acesso</p>
-                <p className="text-blue-700">
-                  Um código único será gerado automaticamente para que os alunos possam se inscrever na turma.
+                <p className="text-blue-700 text-sm">
+                  Um código único de 6 caracteres será gerado para que seus alunos possam entrar na turma.
                 </p>
               </div>
 
@@ -229,9 +276,10 @@ export function GerenciamentoTurmas() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  disabled={criando}
+                  className="flex-1 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
                 >
-                  Criar Turma
+                  {criando ? 'Criando...' : 'Criar Turma'}
                 </button>
               </div>
             </form>
@@ -241,3 +289,4 @@ export function GerenciamentoTurmas() {
     </div>
   );
 }
+

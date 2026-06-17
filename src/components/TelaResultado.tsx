@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Link, useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { Trophy, Star, TrendingUp, ArrowRight, RotateCcw } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { calcularProgressoNivel } from '../utils/leveling';
 
 export function TelaResultado() {
   const { desafioId } = useParams();
@@ -11,15 +12,19 @@ export function TelaResultado() {
 
   const sucesso = searchParams.get('sucesso') === 'true';
   const pontos = parseInt(searchParams.get('pontos') || '0');
+  const estrelasUrl = parseInt(searchParams.get('estrelas') || (sucesso ? '3' : '1'));
+
+  const progressoInfo = calcularProgressoNivel((user?.pontos || 0) + (sucesso ? pontos : 0));
 
   const resultados = {
     sucesso,
     pontos,
-    estrelas: sucesso ? 3 : 1,
+    estrelas: estrelasUrl,
     tempoExecucao: '12s',
     tentativas: 3,
     medalhas: sucesso ? ['Primeira Tentativa', 'Código Eficiente'] : [],
-    progressoNivel: 75
+    progressoNivel: progressoInfo.porcentagem,
+    pontosRestantes: progressoInfo.pontosRestantes
   };
 
   useEffect(() => {
@@ -120,7 +125,7 @@ export function TelaResultado() {
                 style={{ width: `${resultados.progressoNivel}%` }}
               />
             </div>
-            <p className="text-gray-600 mt-2">Mais 25% para subir de nível!</p>
+            <p className="text-gray-600 mt-2">Faltam {resultados.pontosRestantes} pontos para o nível {progressoInfo.nivel + 1}!</p>
           </div>
 
           {/* Feedback Personalizado */}

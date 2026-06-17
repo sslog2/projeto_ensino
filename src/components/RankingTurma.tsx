@@ -1,28 +1,70 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { ArrowLeft, Trophy, Star, TrendingUp, Medal, Target } from 'lucide-react';
+import { ArrowLeft, Trophy, Star, TrendingUp, Medal, Target, Loader2 } from 'lucide-react';
 import { AvatarEvolutivo } from './AvatarEvolutivo';
+import { supabase } from '../supabaseClient';
+import { calcularNivel } from '../utils/leveling';
 
 export function RankingTurma() {
   const { user } = useAuth();
-  const [periodoSelecionado, setPeriodoSelecionado] = useState<'semanal' | 'mensal' | 'geral'>('semanal');
+  const [loading, setLoading] = useState(true);
+  const [ranking, setRanking] = useState<any[]>([]);
+  const [turmaInfo, setTurmaInfo] = useState<any>(null);
 
-  const ranking = [
-    { id: 1, nome: 'Carlos Souza', nivel: 8, pontos: 2450, posicao: 1, pontosSemanais: 580, avatar: 'mage' },
-    { id: 2, nome: 'Ana Lima', nivel: 7, pontos: 2180, posicao: 2, pontosSemanais: 520, avatar: 'warrior' },
-    { id: 3, nome: 'João Silva', nivel: 5, pontos: 1250, posicao: 3, pontosSemanais: 380, avatar: 'warrior', euSou: true },
-    { id: 4, nome: 'Maria Santos', nivel: 6, pontos: 1180, posicao: 4, pontosSemanais: 340, avatar: 'basic' },
-    { id: 5, nome: 'Pedro Costa', nivel: 5, pontos: 980, posicao: 5, pontosSemanais: 290, avatar: 'basic' },
-    { id: 6, nome: 'Juliana Alves', nivel: 4, pontos: 820, posicao: 6, pontosSemanais: 250, avatar: 'basic' },
-    { id: 7, nome: 'Lucas Ferreira', nivel: 4, pontos: 750, posicao: 7, pontosSemanais: 210, avatar: 'basic' },
-    { id: 8, nome: 'Beatriz Silva', nivel: 3, pontos: 620, posicao: 8, pontosSemanais: 180, avatar: 'basic' },
-  ];
+  useEffect(() => {
+    if (user) {
+      fetchRanking();
+    }
+  }, [user]);
 
-  const metaTurma = {
-    atual: 8500,
-    meta: 10000,
-    percentual: 85
+  const fetchRanking = async () => {
+    try {
+      setLoading(true);
+      
+      const { data: vinculo, error: errorVinculo } = await supabase
+        .from('alunos_turmas')
+        .select('turma_id, turmas(nome)')
+        .eq('aluno_id', user?.id)
+        .single();
+
+      if (errorVinculo || !vinculo) throw errorVinculo || new Error('Aluno sem turma');
+      setTurmaInfo(vinculo.turmas);
+
+      const { data: alunos, error: errorAlunos } = await supabase
+        .from('alunos_turmas')
+        .select(`
+          aluno_id,
+          profiles:aluno_id (
+            id,
+            nome,
+            pontos,
+            nivel,
+            avatar_data
+          )
+        `)
+        .eq('turma_id', vinculo.turma_id);
+
+      if (errorAlunos) throw errorAlunos;
+
+      const r = (alunos || [])
+        .map((a: any) => ({
+          id: a.profiles.id,
+          nome: a.profiles.nome,
+          pontos: a.profiles.pontos || 0,
+          nivel: calcularNivel(a.profiles.pontos || 0), // Calcula na hora
+          avatar: a.profiles.avatar_data?.corpo || 'basic',
+          euSou: a.profiles.id === user?.id
+        }))
+        .sort((a, b) => b.pontos - a.pontos)
+        .map((a, index) => ({ ...a, posicao: index + 1 }));
+
+      setRanking(r);
+    } catch (error) {
+      console.error('Erro ao buscar ranking:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getPosicaoCor = (posicao: number) => {
@@ -39,9 +81,18 @@ export function RankingTurma() {
     return posicao;
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-purple-50">
+        <Loader2 className="w-12 h-12 text-purple-600 animate-spin" />
+      </div>
+    );
+  }
+
+  const minhaPosicao = ranking.find(a => a.euSou);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50">
-      {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
@@ -50,7 +101,7 @@ export function RankingTurma() {
             </Link>
             <div>
               <h1 className="text-purple-700">Ranking da Turma</h1>
-              <p className="text-gray-600">7º Ano A - Competição amigável</p>
+              <p className="text-gray-600">{turmaInfo?.nome || 'Minha Turma'} - Competição amigável</p>
             </div>
           </div>
         </div>
@@ -58,98 +109,58 @@ export function RankingTurma() {
 
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Coluna Principal */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Pódio */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-gray-800 mb-6">Top 3 da Semana</h2>
-              
-              <div className="flex items-end justify-center gap-4 mb-8">
-                {/* 2º Lugar */}
-                <div className="flex-1 text-center">
-                  <div className="flex justify-center mb-2">
-                    <AvatarEvolutivo nivel={ranking[1].nivel} tipo={ranking[1].avatar} tamanho="md" />
-                  </div>
-                  <div className="bg-gradient-to-br from-gray-400 to-gray-600 text-white rounded-lg p-4 h-32 flex flex-col justify-end">
-                    <p className="text-3xl mb-1">🥈</p>
-                    <p className="text-white">{ranking[1].nome.split(' ')[0]}</p>
-                    <div className="flex items-center justify-center gap-1 mt-1">
-                      <Star className="w-4 h-4 fill-current" />
-                      <span>{ranking[1].pontosSemanais}</span>
+            {ranking.length >= 3 && (
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <h2 className="text-gray-800 mb-6">Top 3 do Ranking</h2>
+                <div className="flex items-end justify-center gap-4 mb-8">
+                  <div className="flex-1 text-center">
+                    <div className="flex justify-center mb-2">
+                      <AvatarEvolutivo nivel={ranking[1].nivel} tipo={ranking[1].avatar} tamanho="md" />
+                    </div>
+                    <div className="bg-gradient-to-br from-gray-400 to-gray-600 text-white rounded-lg p-4 h-36 flex flex-col justify-end">
+                      <p className="text-3xl mb-1">🥈</p>
+                      <p className="text-white truncate font-bold">{ranking[1].nome.split(' ')[0]}</p>
+                      <div className="flex items-center justify-center gap-1 mt-1">
+                        <Star className="w-4 h-4 fill-current text-yellow-300" />
+                        <span>{ranking[1].pontos}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* 1º Lugar */}
-                <div className="flex-1 text-center">
-                  <div className="flex justify-center mb-2">
-                    <AvatarEvolutivo nivel={ranking[0].nivel} tipo={ranking[0].avatar} tamanho="md" />
-                  </div>
-                  <div className="bg-gradient-to-br from-yellow-400 to-orange-500 text-white rounded-lg p-4 h-40 flex flex-col justify-end shadow-lg">
-                    <p className="text-4xl mb-1">🥇</p>
-                    <p className="text-white">{ranking[0].nome.split(' ')[0]}</p>
-                    <div className="flex items-center justify-center gap-1 mt-1">
-                      <Star className="w-4 h-4 fill-current" />
-                      <span>{ranking[0].pontosSemanais}</span>
+                  <div className="flex-1 text-center">
+                    <div className="flex justify-center mb-2">
+                      <AvatarEvolutivo nivel={ranking[0].nivel} tipo={ranking[0].avatar} tamanho="md" />
+                    </div>
+                    <div className="bg-gradient-to-br from-yellow-400 to-orange-500 text-white rounded-lg p-4 h-48 flex flex-col justify-end shadow-lg ring-4 ring-yellow-200">
+                      <p className="text-4xl mb-1">🥇</p>
+                      <p className="text-white truncate font-bold text-lg">{ranking[0].nome.split(' ')[0]}</p>
+                      <div className="flex items-center justify-center gap-1 mt-1">
+                        <Star className="w-5 h-5 fill-current text-yellow-300" />
+                        <span className="font-bold">{ranking[0].pontos}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* 3º Lugar */}
-                <div className="flex-1 text-center">
-                  <div className="flex justify-center mb-2">
-                    <AvatarEvolutivo nivel={ranking[2].nivel} tipo={ranking[2].avatar} tamanho="md" />
-                  </div>
-                  <div className="bg-gradient-to-br from-orange-400 to-orange-600 text-white rounded-lg p-4 h-28 flex flex-col justify-end">
-                    <p className="text-3xl mb-1">🥉</p>
-                    <p className="text-white">{ranking[2].nome.split(' ')[0]}</p>
-                    <div className="flex items-center justify-center gap-1 mt-1">
-                      <Star className="w-4 h-4 fill-current" />
-                      <span>{ranking[2].pontosSemanais}</span>
+                  <div className="flex-1 text-center">
+                    <div className="flex justify-center mb-2">
+                      <AvatarEvolutivo nivel={ranking[2].nivel} tipo={ranking[2].avatar} tamanho="md" />
+                    </div>
+                    <div className="bg-gradient-to-br from-orange-400 to-orange-600 text-white rounded-lg p-4 h-32 flex flex-col justify-end">
+                      <p className="text-3xl mb-1">🥉</p>
+                      <p className="text-white truncate font-bold">{ranking[2].nome.split(' ')[0]}</p>
+                      <div className="flex items-center justify-center gap-1 mt-1">
+                        <Star className="w-4 h-4 fill-current text-yellow-300" />
+                        <span>{ranking[2].pontos}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Filtros de Período */}
-            <div className="flex gap-2 bg-white rounded-xl shadow-lg p-2">
-              <button
-                onClick={() => setPeriodoSelecionado('semanal')}
-                className={`flex-1 py-2 rounded-lg transition-all ${
-                  periodoSelecionado === 'semanal'
-                    ? 'bg-purple-600 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                Semanal
-              </button>
-              <button
-                onClick={() => setPeriodoSelecionado('mensal')}
-                className={`flex-1 py-2 rounded-lg transition-all ${
-                  periodoSelecionado === 'mensal'
-                    ? 'bg-purple-600 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                Mensal
-              </button>
-              <button
-                onClick={() => setPeriodoSelecionado('geral')}
-                className={`flex-1 py-2 rounded-lg transition-all ${
-                  periodoSelecionado === 'geral'
-                    ? 'bg-purple-600 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                Geral
-              </button>
-            </div>
-
-            {/* Lista Completa do Ranking */}
             <div className="bg-white rounded-xl shadow-lg p-6">
               <h2 className="text-gray-800 mb-4">Ranking Completo</h2>
-              
               <div className="space-y-3">
                 {ranking.map((aluno) => (
                   <div
@@ -157,115 +168,72 @@ export function RankingTurma() {
                     className={`flex items-center gap-4 p-4 rounded-lg transition-all ${
                       aluno.euSou
                         ? 'bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-400'
-                        : 'bg-gray-50 hover:bg-gray-100'
+                        : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
                     }`}
                   >
-                    {/* Posição */}
-                    <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${getPosicaoCor(aluno.posicao)} flex items-center justify-center text-white flex-shrink-0`}>
-                      <span className="text-xl">{getPosicaoIcone(aluno.posicao)}</span>
+                    <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${getPosicaoCor(aluno.posicao)} flex items-center justify-center text-white flex-shrink-0 shadow-sm font-bold`}>
+                      {getPosicaoIcone(aluno.posicao)}
                     </div>
-
-                    {/* Avatar */}
                     <div className="flex-shrink-0">
                       <AvatarEvolutivo nivel={aluno.nivel} tipo={aluno.avatar} tamanho="sm" />
                     </div>
-
-                    {/* Info */}
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <p className="text-gray-800">{aluno.nome}</p>
+                        <p className="text-gray-800 font-bold">{aluno.nome}</p>
                         {aluno.euSou && (
-                          <span className="px-2 py-1 bg-purple-600 text-white text-xs rounded-full">Você</span>
+                          <span className="px-2 py-0.5 bg-purple-600 text-white text-[10px] uppercase font-black rounded-full tracking-wider">Você</span>
                         )}
                       </div>
-                      <p className="text-gray-600">Nível {aluno.nivel}</p>
+                      <p className="text-gray-500 text-xs font-medium uppercase tracking-tight">Nível {aluno.nivel}</p>
                     </div>
-
-                    {/* Pontos */}
                     <div className="text-right">
-                      <div className="flex items-center gap-1 text-yellow-600 mb-1">
+                      <div className="flex items-center gap-1.5 text-yellow-600 justify-end">
                         <Star className="w-5 h-5 fill-current" />
-                        <span className="text-gray-900">{aluno.pontosSemanais}</span>
+                        <span className="text-gray-900 font-black text-lg">{aluno.pontos}</span>
                       </div>
-                      <p className="text-gray-600">{aluno.pontos} total</p>
                     </div>
                   </div>
                 ))}
+                {ranking.length === 0 && (
+                  <p className="text-center py-12 text-gray-400 italic">Ainda não há outros alunos nesta turma.</p>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Sidebar */}
           <div className="space-y-6">
-            {/* Meta da Turma */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Target className="w-6 h-6 text-purple-600" />
-                <h3 className="text-gray-800">Meta Semanal da Turma</h3>
-              </div>
-
-              <div className="text-center mb-4">
-                <p className="text-gray-900 mb-2">{metaTurma.atual.toLocaleString()} / {metaTurma.meta.toLocaleString()} pontos</p>
-                <div className="w-full bg-gray-200 rounded-full h-4">
-                  <div
-                    className="bg-gradient-to-r from-green-400 to-emerald-500 h-4 rounded-full transition-all"
-                    style={{ width: `${metaTurma.percentual}%` }}
-                  />
-                </div>
-                <p className="text-gray-600 mt-2">{metaTurma.percentual}% completo</p>
-              </div>
-
-              <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg p-4">
-                <p className="text-green-800">
-                  🎉 Faltam apenas 1.500 pontos para desbloquear a recompensa coletiva:
-                  <span className="block mt-2">🏆 Novo tema "Espaço Sideral"</span>
-                </p>
-              </div>
-            </div>
-
-            {/* Sua Posição */}
-            <div className="bg-gradient-to-br from-purple-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
-              <h3 className="mb-4">📊 Sua Posição</h3>
-              
-              <div className="bg-white/20 rounded-lg p-4 mb-4">
+            <div className="bg-gradient-to-br from-purple-600 to-blue-700 rounded-2xl shadow-xl p-6 text-white relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+              <h3 className="mb-4 font-bold text-lg flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-blue-300" />
+                Sua Posição
+              </h3>
+              <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 mb-4 border border-white/20">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-white/80">Posição Atual</span>
-                  <span className="text-2xl">3º</span>
+                  <span className="text-white/70 text-sm">Posição Atual</span>
+                  <span className="text-3xl font-black">{minhaPosicao?.posicao || '-'}º</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-white/80">Pontos esta semana</span>
-                  <span>380 pts</span>
+                  <span className="text-white/70 text-sm">Total de Pontos</span>
+                  <span className="font-bold text-xl">{minhaPosicao?.pontos || 0}</span>
                 </div>
               </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-white/90">
-                  <TrendingUp className="w-4 h-4" />
-                  <span>+2 posições esta semana</span>
-                </div>
-                <p className="text-white/80">
-                  Você precisa de 140 pontos para alcançar o 2º lugar!
-                </p>
-              </div>
+              <p className="text-blue-100 text-sm italic leading-relaxed">
+                {minhaPosicao?.posicao === 1 
+                  ? 'Você é a lenda da turma! Defenda seu trono! 👑' 
+                  : 'Continue praticando para subir no pódio! 🚀'}
+              </p>
             </div>
 
-            {/* Dicas de Competição */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-gray-800 mb-3">💡 Dicas</h3>
-              <ul className="space-y-2 text-gray-600">
-                <li className="flex items-start gap-2">
-                  <span className="text-purple-600 flex-shrink-0">•</span>
-                  <span>Complete desafios mais difíceis para ganhar mais pontos</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-purple-600 flex-shrink-0">•</span>
-                  <span>Participe de missões colaborativas para pontuar em equipe</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-purple-600 flex-shrink-0">•</span>
-                  <span>Mantenha sua sequência de estudos ativa</span>
-                </li>
-              </ul>
+            <div className="bg-white rounded-2xl shadow-lg p-6 border-t-4 border-yellow-400">
+              <h3 className="text-gray-800 mb-3 font-bold flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-yellow-500" />
+                Dica de Mestre
+              </h3>
+              <p className="text-gray-600 text-sm leading-relaxed">
+                Sabia que resolver desafios sem errar nenhum comando te dá um bônus de pontos?
+                Pense bem antes de clicar em "Executar"!
+              </p>
             </div>
           </div>
         </div>

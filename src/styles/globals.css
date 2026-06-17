@@ -1,3 +1,4 @@
+@import "tailwindcss";
 @custom-variant dark (&:is(.dark *));
 
 :root {
@@ -76,6 +77,268 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(0.269 0 0);
   --sidebar-ring: oklch(0.439 0 0);
+}
+
+.high-contrast {
+  --background: #000000;
+  --foreground: #ffffff;
+  --card: #000000;
+  --card-foreground: #ffffff;
+  --popover: #000000;
+  --popover-foreground: #ffffff;
+  --primary: #FFA500;
+  --primary-foreground: #000000;
+  --secondary: #000000;
+  --secondary-foreground: #ffffff;
+  --muted: #000000;
+  --muted-foreground: #ffffff;
+  --accent: #FFA500;
+  --accent-foreground: #000000;
+  --destructive: #ff0000;
+  --destructive-foreground: #ffffff;
+  --border: #ffffff;
+  --input: #000000;
+  --ring: #FFA500;
+  --sidebar: #000000;
+  --sidebar-foreground: #ffffff;
+  --sidebar-border: #ffffff;
+}
+
+.high-contrast * {
+  border-color: #ffffff !important;
+  outline-color: #FFA500 !important;
+  background-image: none !important;
+}
+
+/* Custom Focus Ring for High Contrast */
+.high-contrast *:focus-visible {
+  outline: 4px dashed #FFA500 !important;
+  outline-offset: 4px !important;
+  box-shadow: none !important;
+}
+
+/* Ensure containers have visible borders */
+.high-contrast div[class*="bg-white"],
+.high-contrast div[class*="bg-card"],
+.high-contrast div[class*="rounded-"],
+.high-contrast section,
+.high-contrast article,
+.high-contrast .border,
+.high-contrast .border-2 {
+  border: 2px solid #ffffff !important;
+}
+
+/* Force colors on high contrast mode to override Tailwind utilities */
+.high-contrast *:not(button):not(a):not(input):not(select):not(textarea):not(svg):not(path):not(circle):not(rect):not(polygon):not(.progress-bar):not(.progress-indicator) {
+  background-color: var(--background) !important;
+  color: var(--foreground) !important;
+}
+
+/* Only actual buttons get the solid yellow background */
+.high-contrast button,
+.high-contrast [role="button"],
+.high-contrast .is-button {
+  background-color: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+  border: 2px solid var(--primary) !important;
+  font-weight: bold !important;
+}
+
+/* Specific fix for the Logout button in High Contrast */
+.high-contrast .btn-logout {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border: 2px solid #ffffff !important;
+  border-radius: var(--radius) !important;
+  padding: 0.5rem 1rem !important;
+  font-weight: bold !important;
+}
+
+.high-contrast .btn-logout svg {
+  color: #000000 !important;
+}
+
+/* Ensure Nova Turma is also bold and has proper contrast */
+.high-contrast .btn-nova-turma {
+  background-color: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+  border: 2px solid var(--primary) !important;
+  font-weight: bold !important;
+  border-radius: var(--radius) !important;
+}
+
+/* Links and Cards get yellow borders/text but black backgrounds */
+.high-contrast a {
+  background-color: transparent !important;
+  color: var(--primary) !important;
+  border: 1px solid transparent;
+  text-decoration: underline !important;
+  text-underline-offset: 4px;
+}
+
+.high-contrast a:hover {
+  border-color: var(--primary) !important;
+  text-decoration-thickness: 2px !important;
+}
+
+/* Ensure headings inside links also get the underline effect or inherit properly */
+.high-contrast a h1,
+.high-contrast a h2,
+.high-contrast a h3,
+.high-contrast a h4 {
+  text-decoration: underline !important;
+}
+
+/* Cards (which are often Links) should stay black with white borders */
+.high-contrast div[class*="bg-white"],
+.high-contrast div[class*="bg-card"],
+.high-contrast div[class*="rounded-"],
+.high-contrast a[class*="bg-white"],
+.high-contrast a[class*="rounded-"],
+.high-contrast section,
+.high-contrast article,
+.high-contrast .border,
+.high-contrast .border-2 {
+  background-color: var(--background) !important;
+  color: var(--foreground) !important;
+  border: 2px solid #ffffff !important;
+}
+
+/* Ensure icons inside links/cards follow the yellow highlight theme */
+.high-contrast a svg {
+  color: var(--primary) !important;
+}
+
+.high-contrast button *, 
+.high-contrast a * {
+  /* color: inherit !important; // Removed to allow icons to be yellow in cards */
+}
+
+/* Specific fix for Progress Bars in High Contrast */
+.high-contrast [data-slot="progress"],
+.high-contrast .w-full.bg-gray-200.rounded-full,
+.high-contrast .w-full.bg-gray-100.rounded-full {
+  background-color: #000000 !important;
+  border: 2px solid #FFA500 !important;
+  padding: 0 !important;
+  overflow: hidden;
+  box-sizing: border-box;
+  display: flex;
+  align-items: stretch;
+}
+
+.high-contrast [data-slot="progress-indicator"],
+.high-contrast .rounded-full.h-3[style*="width"],
+.high-contrast .rounded-full.h-2[style*="width"] {
+  background-color: #FFA500 !important;
+  background-image: none !important;
+  border: none !important;
+  height: 100% !important;
+  margin: 0 !important;
+}
+
+.high-contrast svg {
+  color: inherit !important;
+}
+
+/* Simplified SVG handling for High Contrast */
+.high-contrast svg {
+  color: inherit !important;
+}
+
+.high-contrast svg * {
+  stroke: currentColor !important;
+}
+
+/* Ensure icons that shouldn't be filled stay transparent (like Lucide) */
+.high-contrast svg[fill="none"] *,
+.high-contrast svg:not([fill]) * {
+  fill: none !important;
+}
+
+/* If an icon specifically has a fill, let it use currentColor */
+.high-contrast svg[fill]:not([fill="none"]) * {
+  fill: currentColor !important;
+}
+
+/* Special Case: Logout Button Icon */
+.high-contrast .btn-logout svg,
+.high-contrast .btn-logout svg * {
+  color: #000000 !important;
+  stroke: #000000 !important;
+  fill: none !important;
+}
+
+.high-contrast .accessibility-toolbar {
+  background-color: #000000 !important;
+  border-bottom: 2px solid #ffffff !important;
+}
+
+.high-contrast .accessibility-toolbar * {
+  color: #ffffff !important;
+}
+
+.high-contrast .accessibility-toolbar button {
+  background-color: #000000 !important;
+  border: 1px solid #ffffff !important;
+  color: #ffffff !important;
+}
+
+.high-contrast .accessibility-toolbar button svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+.high-contrast .accessibility-toolbar button[aria-pressed="true"],
+.high-contrast .accessibility-toolbar button:active {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border-color: #ffffff !important;
+}
+
+.high-contrast .accessibility-toolbar button[aria-pressed="true"] svg,
+.high-contrast .accessibility-toolbar button:active svg,
+.high-contrast .accessibility-toolbar button[aria-pressed="true"] svg *,
+.high-contrast .accessibility-toolbar button:active svg * {
+  color: #000000 !important;
+  stroke: #000000 !important;
+}
+
+/* Specific fix for Game Grid in High Contrast */
+.high-contrast .aspect-square {
+  background-color: #000000 !important;
+  background-image: none !important;
+}
+
+.high-contrast .aspect-square div[class*="bg-white/50"],
+.high-contrast .aspect-square div[class*="bg-white/20"] {
+  background-color: #000000 !important;
+  border: 1px solid #ffffff !important;
+}
+
+.high-contrast .aspect-square .bg-blue-400 {
+  background-color: #FFA500 !important; /* Robot position */
+  border: 2px solid #ffffff !important;
+}
+
+.high-contrast .aspect-square .bg-yellow-300 {
+  background-color: #ffffff !important; /* Star position */
+  border: 2px solid #FFA500 !important;
+}
+
+.high-contrast .aspect-square .text-2xl {
+  color: #000000 !important; /* Star icon color if it's text */
+}
+
+.focus-mode .sidebar-container:not(.pedagogical-focus),
+.focus-mode header:not(.accessibility-toolbar),
+.focus-mode .decorative-elements {
+  display: none !important;
+}
+
+.focus-mode .main-content {
+  margin-left: 0 !important;
+  width: 100% !important;
 }
 
 @theme inline {

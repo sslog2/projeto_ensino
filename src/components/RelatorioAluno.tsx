@@ -1,63 +1,182 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, TrendingUp, Clock, Target, AlertTriangle, Trophy, Calendar } from 'lucide-react';
+import { ArrowLeft, Calendar, Loader2, AlertTriangle } from 'lucide-react';
 import { AvatarEvolutivo } from './AvatarEvolutivo';
+import { supabase } from '../supabaseClient';
+import { useAuth } from '../contexts/AuthContext';
+import { calcularProgressoNivel } from '../utils/leveling';
 
 export function RelatorioAluno() {
   const { id } = useParams();
+  const { user: currentUser } = useAuth();
   const [periodoSelecionado, setPeriodoSelecionado] = useState<'semana' | 'mes' | 'total'>('semana');
+  const [loading, setLoading] = useState(true);
+  const [alunoInfo, setAlunoInfo] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [historicoTentativas, setHistoricoTentativas] = useState<any[]>([]);
+  const [estatisticas, setEstatisticas] = useState({
+    desafiosConcluidos: 0,
+    totalDesafios: 0,
+    horasEstudo: 0,
+    taxaSucesso: 0
+  });
 
-  const aluno = {
-    id: id,
-    nome: 'Pedro Costa',
-    email: 'pedro.costa@escola.com',
-    turma: '7º Ano B',
-    nivel: 5,
-    pontos: 980,
-    avatar: 'basic',
-    ultimoAcesso: '1 dia atrás',
-    dataInscricao: '01/02/2024'
+  useEffect(() => {
+    if (id) {
+      fetchDadosAluno();
+    }
+  }, [id]);
+
+  const fetchDadosAluno = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // 1. Buscar Perfil do Aluno e sua Turma (dados básicos garantidos)
+      const { data: perfilData, error: perfilError } = await supabase
+        .from('profiles')
+        .select(`
+          id, nome, nivel, pontos, avatar_data,
+          alunos_turmas(turma_id, turmas(id, nome))
+        `)
+        .eq('id', id)
+        .single();
+
+      if (perfilError) {
+        setError(`Erro ao buscar perfil: ${perfilError.message}`);
+        throw perfilError;
+      }
+
+      // 1.1 Tentar buscar campos adicionais separadamente
+      let emailReal = '';
+      let necessidades = false;
+      let dataInscricaoStr = 'N/A';
+      try {
+        const { data: extraData } = await supabase
+          .from('profiles')
+          .select('email, necessidades_cognitivas, created_at')
+          .eq('id', id)
+          .single();
+        if (extraData) {
+          emailReal = (extraData as any).email || '';
+          necessidades = !!(extraData as any).necessidades_cognitivas;
+          if ((extraData as any).created_at) {
+             dataInscricaoStr = new Date((extraData as any).created_at).toLocaleDateString('pt-BR');
+          }
+        }
+      } catch (e) {
+        console.warn('Colunas extras não disponíveis.');
+      }
+      
+      const turmaInfo = perfilData.alunos_turmas?.[0]?.turmas || { nome: 'Sem Turma', id: '' };
+      
+      setAlunoInfo({
+        ...perfilData,
+        email: emailReal,
+        turmaNome: turmaInfo.nome,
+        turmaId: turmaInfo.id,
+        avatar: perfilData.avatar_data?.corpo || 'basic',
+        dataInscricao: dataInscricaoStr,
+        necessidades_cognitivas: necessidades
+      });
+
+      // 2. Buscar Histórico de Progresso
+      const { data: progressoData, error: progressoError } = await supabase
+        .from('progresso_alunos')
+        .select(`
+          id, concluido, pontuacao_obtida, data_conclusao, tentativas,
+          desafios(titulo, dificuldade)
+        `)
+        .eq('aluno_id', id)
+        .order('id', { ascending: false }); // Ordenar por ID para garantir que falhas recentes apareçam
+
+      if (progressoError) console.error('Erro no progresso:', progressoError);
+
+      // 3. Buscar total de desafios
+      const { count: totalDesafios } = await supabase
+        .from('desafios')
+        .select('*', { count: 'exact', head: true });
+
+      const formatados = (progressoData || []).map(p => ({
+        id: p.id,
+        desafio: p.desafios?.titulo || 'Desafio',
+        dificuldade: p.desafios?.dificuldade || 'Média',
+        data: p.data_conclusao ? new Date(p.data_conclusao).toLocaleDateString('pt-BR') : 'Tentativa Recente',
+        sucesso: p.concluido,
+        pontos: p.pontuacao_obtida,
+        tentativas: p.tentativas || 1
+      }));
+
+      setHistoricoTentativas(formatados);
+
+      const concluidos = formatados.filter(p => p.sucesso).length;
+      const taxa = formatados.length > 0 ? Math.round((concluidos / formatados.length) * 100) : 0;
+
+      setEstatisticas({
+        desafiosConcluidos: concluidos,
+        totalDesafios: totalDesafios || 0,
+        horasEstudo: formatados.reduce((acc, curr) => acc + (curr.tentativas || 1), 0) * 0.1, // 6 min por tentativa
+        taxaSucesso: taxa
+      });
+
+    } catch (error: any) {
+      console.error('Erro ao buscar dados do aluno:', error);
+      if (!error) setError(error.message || 'Erro desconhecido ao carregar dados.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const estatisticas = {
-    desafiosConcluidos: 9,
-    totalDesafios: 25,
-    horasEstudo: 5.2,
-    tentativasMedia: 3.8,
-    sequenciaDias: 3,
-    melhorSequencia: 12,
-    taxaSucesso: 62
+  const toggleNecessidade = async () => {
+    if (!alunoInfo) return;
+    
+    try {
+      const novaNecessidade = !alunoInfo.necessidades_cognitivas;
+      const { error } = await supabase
+        .from('profiles')
+        .update({ necessidades_cognitivas: novaNecessidade })
+        .eq('id', alunoInfo.id)
+        .select()
+        .single();
+
+      if (error) {
+        alert(`Erro ao salvar no banco (Possível bloqueio de permissão RLS): ${error.message}`);
+        throw error;
+      }
+
+      setAlunoInfo({
+        ...alunoInfo,
+        necessidades_cognitivas: novaNecessidade
+      });
+    } catch (err: any) {
+      console.error('Erro ao atualizar tag de necessidade:', err);
+      // Se não foi um erro já alertado acima, alerta agora
+      if (!err.message?.includes('salvar')) {
+         alert(`Erro ao atualizar tag: ${err.message || 'Erro desconhecido'}`);
+      }
+    }
   };
 
-  const conceitosComDificuldade = [
-    { conceito: 'Loops', tentativas: 8, acertos: 2, dificuldade: 'alta' },
-    { conceito: 'Condicionais Aninhadas', tentativas: 6, acertos: 3, dificuldade: 'média' },
-    { conceito: 'Operadores Lógicos', tentativas: 5, acertos: 2, dificuldade: 'média' }
-  ];
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-blue-50">
+        <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
+      </div>
+    );
+  }
 
-  const historicoTentativas = [
-    { id: 1, desafio: 'Laços de Repetição', data: '25/11/2024', tentativas: 5, sucesso: false, tempo: '18min' },
-    { id: 2, desafio: 'Condicionais If/Else', data: '24/11/2024', tentativas: 3, sucesso: true, tempo: '12min' },
-    { id: 3, desafio: 'Variáveis e Operadores', data: '23/11/2024', tentativas: 2, sucesso: true, tempo: '8min' },
-    { id: 4, desafio: 'Sequências Básicas', data: '22/11/2024', tentativas: 1, sucesso: true, tempo: '5min' }
-  ];
-
-  const progressoPorModulo = [
-    { modulo: 'Fundamentos', progresso: 100, cor: 'bg-green-500' },
-    { modulo: 'Estruturas de Controle', progresso: 75, cor: 'bg-blue-500' },
-    { modulo: 'Laços de Repetição', progresso: 33, cor: 'bg-yellow-500' },
-    { modulo: 'Estruturas de Dados', progresso: 0, cor: 'bg-gray-300' }
-  ];
-
-  const graficoEngajamento = [
-    { dia: 'Seg', horas: 1.2 },
-    { dia: 'Ter', horas: 0.8 },
-    { dia: 'Qua', horas: 0 },
-    { dia: 'Qui', horas: 1.5 },
-    { dia: 'Sex', horas: 0.9 },
-    { dia: 'Sáb', horas: 0.5 },
-    { dia: 'Dom', horas: 0.3 }
-  ];
+  if (error || !alunoInfo) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-blue-50 p-4 text-center">
+        <AlertTriangle className="w-12 h-12 text-red-500 mb-4" />
+        <h2 className="text-gray-800 font-bold mb-2">Aluno não encontrado</h2>
+        <p className="text-gray-600 mb-6">{error || 'Verifique se o ID do aluno está correto ou se ele ainda faz parte da sua turma.'}</p>
+        <Link to="/dashboard-professor" className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+          Voltar ao Dashboard
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
@@ -65,12 +184,12 @@ export function RelatorioAluno() {
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
-            <Link to="/turma/2" className="text-gray-600 hover:text-gray-900">
+            <Link to={alunoInfo.turmaId ? `/turma/${alunoInfo.turmaId}` : '/dashboard-professor'} className="text-gray-600 hover:text-gray-900">
               <ArrowLeft className="w-6 h-6" />
             </Link>
             <div className="flex-1">
               <h1 className="text-blue-700">Relatório do Aluno</h1>
-              <p className="text-gray-600">{aluno.turma}</p>
+              <p className="text-gray-600">{alunoInfo.turmaNome}</p>
             </div>
           </div>
         </div>
@@ -83,119 +202,72 @@ export function RelatorioAluno() {
             {/* Perfil do Aluno */}
             <div className="bg-white rounded-xl shadow-lg p-6">
               <div className="flex items-start gap-6 mb-6">
-                <AvatarEvolutivo nivel={aluno.nivel} tipo={aluno.avatar} tamanho="lg" />
+                <AvatarEvolutivo nivel={alunoInfo.nivel} tipo={alunoInfo.avatar} tamanho="lg" />
                 <div className="flex-1">
-                  <h2 className="text-gray-800 mb-1">{aluno.nome}</h2>
-                  <p className="text-gray-600 mb-2">{aluno.email}</p>
-                  <div className="flex items-center gap-4 text-gray-600">
-                    <span>Nível {aluno.nivel}</span>
+                  <h2 className="text-gray-800 mb-1">{alunoInfo.nome}</h2>
+                  <p className="text-gray-600 mb-2">{alunoInfo.email || 'Email oculto'}</p>
+                  <div className="flex items-center gap-4 text-gray-600 font-medium">
+                    <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded">Nível {alunoInfo.nivel}</span>
                     <span>•</span>
-                    <span>{aluno.pontos} pontos</span>
+                    <span className="text-yellow-600">{alunoInfo.pontos} pts</span>
                     <span>•</span>
-                    <span>Desde {aluno.dataInscricao}</span>
+                    <span className="text-sm">Desde {alunoInfo.dataInscricao}</span>
                   </div>
+
+                  <div className="mt-3 max-w-xs">
+                    <div className="flex justify-between text-xs text-gray-500 mb-1">
+                      <span>Progresso do Nível</span>
+                      <span>{calcularProgressoNivel(alunoInfo.pontos || 0).porcentagem}%</span>
+                    </div>
+                    <div className="w-full bg-gray-100 rounded-full h-1.5">
+                      <div 
+                        className="bg-blue-600 h-1.5 rounded-full transition-all duration-1000" 
+                        style={{ width: `${calcularProgressoNivel(alunoInfo.pontos || 0).porcentagem}%` }} 
+                      />
+                    </div>
+                  </div>
+                  
+                  {currentUser?.tipo === 'professor' && (
+                    <div className="mt-4">
+                      <button
+                        onClick={toggleNecessidade}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border-2 ${
+                          alunoInfo.necessidades_cognitivas
+                            ? 'bg-purple-100 border-purple-300 text-purple-800 hover:bg-purple-200'
+                            : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                        }`}
+                        aria-pressed={alunoInfo.necessidades_cognitivas}
+                        aria-label="Alternar status de apoio cognitivo especial para este aluno"
+                      >
+                        <div className={`w-3 h-3 rounded-full ${alunoInfo.necessidades_cognitivas ? 'bg-purple-600' : 'bg-gray-400'}`} />
+                        Apoio Cognitivo Especial
+                      </button>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Ativar esta tag libera recursos como o "Preview de Algoritmo" no editor de blocos.
+                      </p>
+                    </div>
+                  )}
                 </div>
-                {conceitosComDificuldade.length > 0 && (
-                  <div className="flex items-center gap-2 px-4 py-2 bg-orange-100 text-orange-700 rounded-lg">
-                    <AlertTriangle className="w-5 h-5" />
-                    <span>Precisa de atenção</span>
-                  </div>
-                )}
               </div>
 
               {/* Estatísticas Rápidas */}
               <div className="grid grid-cols-4 gap-4">
                 <div className="text-center p-3 bg-gray-50 rounded-lg">
-                  <p className="text-gray-600 mb-1">Desafios</p>
-                  <p className="text-gray-900">{estatisticas.desafiosConcluidos}/{estatisticas.totalDesafios}</p>
+                  <p className="text-gray-600 mb-1 text-sm">Concluídos</p>
+                  <p className="text-gray-900 font-bold text-xl">{estatisticas.desafiosConcluidos}/{estatisticas.totalDesafios}</p>
                 </div>
                 <div className="text-center p-3 bg-gray-50 rounded-lg">
-                  <p className="text-gray-600 mb-1">Horas</p>
-                  <p className="text-gray-900">{estatisticas.horasEstudo}h</p>
+                  <p className="text-gray-600 mb-1 text-sm">Tempo (Est.)</p>
+                  <p className="text-gray-900 font-bold text-xl">{estatisticas.horasEstudo.toFixed(1)}h</p>
                 </div>
                 <div className="text-center p-3 bg-gray-50 rounded-lg">
-                  <p className="text-gray-600 mb-1">Taxa Sucesso</p>
-                  <p className="text-gray-900">{estatisticas.taxaSucesso}%</p>
+                  <p className="text-gray-600 mb-1 text-sm">Taxa Sucesso</p>
+                  <p className="text-gray-900 font-bold text-xl">{estatisticas.taxaSucesso}%</p>
                 </div>
                 <div className="text-center p-3 bg-gray-50 rounded-lg">
-                  <p className="text-gray-600 mb-1">Sequência</p>
-                  <p className="text-gray-900">{estatisticas.sequenciaDias} dias</p>
+                  <p className="text-gray-600 mb-1 text-sm">Sequência</p>
+                  <p className="text-gray-900 font-bold text-xl">0 dias</p>
                 </div>
-              </div>
-            </div>
-
-            {/* Gráfico de Engajamento */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-gray-800">Engajamento Semanal</h3>
-                <div className="flex gap-2 bg-gray-100 rounded-lg p-1">
-                  <button
-                    onClick={() => setPeriodoSelecionado('semana')}
-                    className={`px-3 py-1 rounded-md text-sm transition-all ${
-                      periodoSelecionado === 'semana' ? 'bg-white shadow-sm' : 'text-gray-600'
-                    }`}
-                  >
-                    Semana
-                  </button>
-                  <button
-                    onClick={() => setPeriodoSelecionado('mes')}
-                    className={`px-3 py-1 rounded-md text-sm transition-all ${
-                      periodoSelecionado === 'mes' ? 'bg-white shadow-sm' : 'text-gray-600'
-                    }`}
-                  >
-                    Mês
-                  </button>
-                  <button
-                    onClick={() => setPeriodoSelecionado('total')}
-                    className={`px-3 py-1 rounded-md text-sm transition-all ${
-                      periodoSelecionado === 'total' ? 'bg-white shadow-sm' : 'text-gray-600'
-                    }`}
-                  >
-                    Total
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-end justify-between gap-2 h-48">
-                {graficoEngajamento.map((item, index) => {
-                  const altura = (item.horas / 2) * 100;
-                  return (
-                    <div key={index} className="flex-1 flex flex-col items-center">
-                      <div className="flex-1 flex items-end w-full">
-                        <div
-                          className="w-full bg-gradient-to-t from-blue-600 to-blue-400 rounded-t-lg transition-all hover:opacity-80 relative group"
-                          style={{ height: `${altura}%` }}
-                        >
-                          <span className="absolute -top-6 left-1/2 transform -translate-x-1/2 text-xs text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                            {item.horas}h
-                          </span>
-                        </div>
-                      </div>
-                      <span className="text-xs text-gray-600 mt-2">{item.dia}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Progresso por Módulo */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-gray-800 mb-4">Progresso por Módulo</h3>
-              <div className="space-y-4">
-                {progressoPorModulo.map((item, index) => (
-                  <div key={index}>
-                    <div className="flex justify-between text-gray-700 mb-2">
-                      <span>{item.modulo}</span>
-                      <span>{item.progresso}%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-3">
-                      <div
-                        className={`${item.cor} h-3 rounded-full transition-all`}
-                        style={{ width: `${item.progresso}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
               </div>
             </div>
 
@@ -212,128 +284,41 @@ export function RelatorioAluno() {
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex-1">
-                        <h4 className="text-gray-800 mb-1">{item.desafio}</h4>
-                        <div className="flex items-center gap-4 text-gray-600">
+                        <h4 className="text-gray-800 mb-1 font-bold">{item.desafio}</h4>
+                        <div className="flex items-center gap-4 text-gray-600 text-sm">
                           <span className="flex items-center gap-1">
                             <Calendar className="w-4 h-4" />
                             {item.data}
                           </span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-4 h-4" />
-                            {item.tempo}
+                          <span className="bg-white px-2 py-0.5 rounded border border-gray-200 text-xs font-medium">
+                            {item.dificuldade}
                           </span>
                         </div>
                       </div>
                       <div className="text-right">
-                        <span className={`px-3 py-1 rounded-full text-sm ${
+                        <span className={`px-3 py-1 rounded-full text-sm font-bold ${
                           item.sucesso 
                             ? 'bg-green-200 text-green-800' 
                             : 'bg-orange-200 text-orange-800'
                         }`}>
-                          {item.sucesso ? '✓ Sucesso' : '✗ Falhou'}
+                          {item.sucesso ? '✓ Concluído' : '✗ Tentou'}
                         </span>
-                        <p className="text-gray-600 mt-1">{item.tentativas} tentativa(s)</p>
+                        {item.pontos > 0 && (
+                          <p className="text-yellow-600 mt-2 font-bold text-sm">+{item.pontos} pts</p>
+                        )}
                       </div>
                     </div>
                   </div>
                 ))}
+                {historicoTentativas.length === 0 && (
+                  <p className="text-center py-8 text-gray-500 italic">Nenhum desafio registrado ainda.</p>
+                )}
               </div>
             </div>
           </div>
 
           {/* Sidebar */}
           <div className="space-y-6">
-            {/* Alertas e Conceitos com Dificuldade */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <AlertTriangle className="w-6 h-6 text-orange-600" />
-                <h3 className="text-gray-800">Conceitos com Dificuldade</h3>
-              </div>
-
-              <div className="space-y-3">
-                {conceitosComDificuldade.map((item, index) => (
-                  <div
-                    key={index}
-                    className={`p-3 rounded-lg ${
-                      item.dificuldade === 'alta' ? 'bg-red-50 border-2 border-red-200' :
-                      item.dificuldade === 'média' ? 'bg-orange-50 border-2 border-orange-200' :
-                      'bg-yellow-50 border-2 border-yellow-200'
-                    }`}
-                  >
-                    <p className="text-gray-800 mb-2">{item.conceito}</p>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">{item.tentativas} tentativas</span>
-                      <span className={`${
-                        item.dificuldade === 'alta' ? 'text-red-700' :
-                        item.dificuldade === 'média' ? 'text-orange-700' :
-                        'text-yellow-700'
-                      }`}>
-                        {item.acertos} acertos
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <h4 className="text-gray-800 mb-2">💡 Recomendações</h4>
-                <ul className="space-y-2 text-gray-600">
-                  <li className="flex items-start gap-2">
-                    <span className="text-blue-600 flex-shrink-0">•</span>
-                    <span>Revisar conceitos de loops com atividades desplugadas</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-blue-600 flex-shrink-0">•</span>
-                    <span>Incentivar participação em missões colaborativas</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-blue-600 flex-shrink-0">•</span>
-                    <span>Agendar sessão de tutoria individual</span>
-                  </li>
-                </ul>
-              </div>
-            </div>
-
-            {/* Tempo de Foco */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Clock className="w-6 h-6 text-blue-600" />
-                <h3 className="text-gray-800">Tempo de Foco</h3>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Média por sessão</span>
-                  <span className="text-gray-900">42 min</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Maior sessão</span>
-                  <span className="text-gray-900">1h 15min</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Total esta semana</span>
-                  <span className="text-gray-900">{estatisticas.horasEstudo}h</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Melhor horário</span>
-                  <span className="text-gray-900">14h - 16h</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Último Acesso */}
-            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-lg p-6 text-white">
-              <h3 className="mb-3">📅 Último Acesso</h3>
-              <p className="text-blue-100 mb-4">{aluno.ultimoAcesso}</p>
-              
-              <div className="bg-white/20 rounded-lg p-3">
-                <p className="text-white/90 text-sm">
-                  {estatisticas.sequenciaDias < 5 
-                    ? '⚠️ Sequência de estudos em risco. Considere enviar um lembrete motivacional.'
-                    : '✓ Aluno está mantendo uma boa rotina de estudos.'}
-                </p>
-              </div>
-            </div>
           </div>
         </div>
       </div>

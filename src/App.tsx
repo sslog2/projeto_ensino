@@ -6,6 +6,8 @@ import {
   Navigate,
 } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { AccessibilityProvider } from "./contexts/AccessibilityContext";
+import { AccessibilityToolbar } from "./components/AccessibilityToolbar";
 import { LoginCadastro } from "./components/LoginCadastro";
 import { DashboardAluno } from "./components/DashboardAluno";
 import { DashboardProfessor } from "./components/DashboardProfessor";
@@ -14,11 +16,13 @@ import { EditorBlocos } from "./components/EditorBlocos";
 import { TelaResultado } from "./components/TelaResultado";
 import { PerfilAluno } from "./components/PerfilAluno";
 import { RankingTurma } from "./components/RankingTurma";
-import { MissoesColaborativas } from "./components/MissoesColaborativas";
 import { GerenciamentoTurmas } from "./components/GerenciamentoTurmas";
 import { DetalheTurma } from "./components/DetalheTurma";
 import { RelatorioAluno } from "./components/RelatorioAluno";
+import { CriarDesafio } from "./components/CriarDesafio";
 import { DesplugadoGuiado } from "./components/DesplugadoGuiado";
+import { DesplugadoAluno } from "./components/DesplugadoAluno";
+import { TooltipProvider } from "./components/ui/tooltip";
 
 function ProtectedRoute({
   children,
@@ -27,7 +31,15 @@ function ProtectedRoute({
   children: React.ReactNode;
   requiredRole?: "aluno" | "professor";
 }) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-purple-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-600"></div>
+      </div>
+    );
+  }
 
   if (!user) {
     return <Navigate to="/login" replace />;
@@ -50,7 +62,15 @@ function ProtectedRoute({
 }
 
 function AppRoutes() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-purple-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-600"></div>
+      </div>
+    );
+  }
 
   return (
     <Routes>
@@ -122,10 +142,10 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/missoes"
+        path="/desplugado-aluno"
         element={
           <ProtectedRoute requiredRole="aluno">
-            <MissoesColaborativas />
+            <DesplugadoAluno />
           </ProtectedRoute>
         }
       />
@@ -164,6 +184,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/professor/criar-desafio"
+        element={
+          <ProtectedRoute requiredRole="professor">
+            <CriarDesafio />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/desplugado"
         element={
           <ProtectedRoute requiredRole="professor">
@@ -183,9 +211,18 @@ function AppRoutes() {
 export default function App() {
   return (
     <Router>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
+      <AccessibilityProvider>
+        <TooltipProvider>
+          <AuthProvider>
+            <div className="min-h-screen flex flex-col">
+              <AccessibilityToolbar />
+              <main className="flex-1">
+                <AppRoutes />
+              </main>
+            </div>
+          </AuthProvider>
+        </TooltipProvider>
+      </AccessibilityProvider>
     </Router>
   );
 }

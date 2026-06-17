@@ -1,50 +1,53 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { ArrowLeft, Star, Lock, CheckCircle, Trophy } from 'lucide-react';
+import { ArrowLeft, Star, Lock, CheckCircle, Trophy, Loader2 } from 'lucide-react';
+import { supabase } from '../supabaseClient';
 
 export function MapaDesafios() {
   const { user } = useAuth();
+  const [desafios, setDesafios] = useState<any[]>([]);
+  const [progresso, setProgresso] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const trilhas = [
-    {
-      id: 1,
-      nome: 'Fundamentos',
-      modulos: [
-        { id: 1, nome: 'Sequências', dificuldade: 'Fácil', concluido: true, pontos: 100, bloqueado: false },
-        { id: 2, nome: 'Variáveis', dificuldade: 'Fácil', concluido: true, pontos: 100, bloqueado: false },
-        { id: 3, nome: 'Operadores', dificuldade: 'Médio', concluido: false, pontos: 150, bloqueado: false },
-        { id: 4, nome: 'Entrada/Saída', dificuldade: 'Médio', concluido: false, pontos: 150, bloqueado: false },
-      ]
-    },
-    {
-      id: 2,
-      nome: 'Estruturas de Controle',
-      modulos: [
-        { id: 5, nome: 'Condicionais If', dificuldade: 'Médio', concluido: true, pontos: 150, bloqueado: false },
-        { id: 6, nome: 'Condicionais Aninhadas', dificuldade: 'Médio', concluido: false, pontos: 150, bloqueado: false },
-        { id: 7, nome: 'Switch/Case', dificuldade: 'Difícil', concluido: false, pontos: 200, bloqueado: false },
-      ]
-    },
-    {
-      id: 3,
-      nome: 'Laços de Repetição',
-      modulos: [
-        { id: 8, nome: 'Loop While', dificuldade: 'Médio', concluido: false, pontos: 150, bloqueado: false },
-        { id: 9, nome: 'Loop For', dificuldade: 'Difícil', concluido: false, pontos: 200, bloqueado: false },
-        { id: 10, nome: 'Loops Aninhados', dificuldade: 'Difícil', concluido: false, pontos: 250, bloqueado: true },
-      ]
-    },
-    {
-      id: 4,
-      nome: 'Estruturas de Dados',
-      modulos: [
-        { id: 11, nome: 'Listas/Arrays', dificuldade: 'Difícil', concluido: false, pontos: 200, bloqueado: true },
-        { id: 12, nome: 'Dicionários', dificuldade: 'Difícil', concluido: false, pontos: 250, bloqueado: true },
-        { id: 13, nome: 'Manipulação de Dados', dificuldade: 'Muito Difícil', concluido: false, pontos: 300, bloqueado: true },
-      ]
+  useEffect(() => {
+    if (user) {
+      fetchDados();
     }
-  ];
+  }, [user]);
+
+  const fetchDados = async () => {
+    try {
+      setLoading(true);
+      
+      // 1. Buscar todos os desafios
+      const { data: desafiosData, error: errorDesafios } = await supabase
+        .from('desafios')
+        .select('*')
+        .order('id', { ascending: true });
+
+      if (errorDesafios) throw errorDesafios;
+
+      // 2. Buscar progresso do aluno
+      const { data: progressoData, error: errorProgresso } = await supabase
+        .from('progresso_alunos')
+        .select('*')
+        .eq('aluno_id', user?.id);
+
+      if (errorProgresso) throw errorProgresso;
+
+      setDesafios(desafiosData || []);
+      setProgresso(progressoData || []);
+    } catch (error) {
+      console.error('Erro ao buscar dados do mapa:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isConcluido = (desafioId: number) => {
+    return progresso.some(p => p.desafio_id === desafioId && p.concluido);
+  };
 
   const getDificuldadeCor = (dificuldade: string) => {
     switch(dificuldade) {
@@ -55,6 +58,17 @@ export function MapaDesafios() {
       default: return 'text-gray-600 bg-gray-100';
     }
   };
+
+  const totalConcluidos = progresso.filter(p => p.concluido).length;
+  const porcentagemProgresso = desafios.length > 0 ? (totalConcluidos / desafios.length) * 100 : 0;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-purple-50">
+        <Loader2 className="w-12 h-12 text-purple-600 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50">
@@ -90,80 +104,64 @@ export function MapaDesafios() {
             </div>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-3">
-            <div className="bg-gradient-to-r from-purple-600 to-blue-600 h-3 rounded-full" style={{ width: '35%' }} />
+            <div 
+              className="bg-gradient-to-r from-purple-600 to-blue-600 h-3 rounded-full transition-all duration-1000" 
+              style={{ width: `${porcentagemProgresso}%` }} 
+            />
           </div>
-          <p className="text-gray-600 mt-2">5 de 13 desafios concluídos</p>
+          <p className="text-gray-600 mt-2">{totalConcluidos} de {desafios.length} desafios concluídos</p>
         </div>
 
-        {/* Trilhas de Aprendizado */}
-        <div className="space-y-8">
-          {trilhas.map((trilha, trilhaIndex) => (
-            <div key={trilha.id} className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                  trilhaIndex === 0 ? 'bg-green-100' :
-                  trilhaIndex === 1 ? 'bg-blue-100' :
-                  trilhaIndex === 2 ? 'bg-purple-100' :
-                  'bg-orange-100'
-                }`}>
-                  <Trophy className={`w-6 h-6 ${
-                    trilhaIndex === 0 ? 'text-green-600' :
-                    trilhaIndex === 1 ? 'text-blue-600' :
-                    trilhaIndex === 2 ? 'text-purple-600' :
-                    'text-orange-600'
-                  }`} />
-                </div>
-                <div>
-                  <h2 className="text-gray-800">{trilha.nome}</h2>
-                  <p className="text-gray-600">{trilha.modulos.length} desafios</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {trilha.modulos.map((modulo) => (
-                  <div key={modulo.id} className="relative">
-                    {modulo.bloqueado ? (
-                      <div className="p-4 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 opacity-60">
-                        <div className="flex items-center justify-between mb-2">
-                          <Lock className="w-6 h-6 text-gray-400" />
-                          <span className={`px-2 py-1 rounded-full text-xs ${getDificuldadeCor(modulo.dificuldade)}`}>
-                            {modulo.dificuldade}
-                          </span>
-                        </div>
-                        <h3 className="text-gray-500 mb-1">{modulo.nome}</h3>
-                        <p className="text-gray-400">Bloqueado</p>
-                      </div>
-                    ) : (
-                      <Link
-                        to={`/desafio/${modulo.id}`}
-                        className={`block p-4 rounded-lg border-2 transition-all ${
-                          modulo.concluido
-                            ? 'border-green-400 bg-green-50 hover:shadow-md'
-                            : 'border-purple-300 bg-white hover:border-purple-500 hover:shadow-md'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          {modulo.concluido ? (
-                            <CheckCircle className="w-6 h-6 text-green-600" />
-                          ) : (
-                            <div className="w-6 h-6 rounded-full border-2 border-purple-400" />
-                          )}
-                          <span className={`px-2 py-1 rounded-full text-xs ${getDificuldadeCor(modulo.dificuldade)}`}>
-                            {modulo.dificuldade}
-                          </span>
-                        </div>
-                        <h3 className="text-gray-800 mb-1">{modulo.nome}</h3>
-                        <div className="flex items-center gap-1 text-yellow-600">
-                          <Star className="w-4 h-4 fill-current" />
-                          <span>{modulo.pontos} pts</span>
-                        </div>
-                      </Link>
-                    )}
-                  </div>
-                ))}
-              </div>
+        {/* Lista de Desafios */}
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+              <Trophy className="w-6 h-6 text-purple-600" />
             </div>
-          ))}
+            <div>
+              <h2 className="text-gray-800">Trilha de Aprendizado</h2>
+              <p className="text-gray-600">Domine os fundamentos da lógica</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {desafios.map((desafio) => {
+              const concluido = isConcluido(desafio.id);
+              return (
+                <Link
+                  key={desafio.id}
+                  to={`/desafio/${desafio.id}`}
+                  className={`block p-4 rounded-lg border-2 transition-all ${
+                    concluido
+                      ? 'border-green-400 bg-green-50 hover:shadow-md'
+                      : 'border-purple-300 bg-white hover:border-purple-500 hover:shadow-md'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    {concluido ? (
+                      <CheckCircle className="w-6 h-6 text-green-600" />
+                    ) : (
+                      <div className="w-6 h-6 rounded-full border-2 border-purple-400" />
+                    )}
+                    <span className={`px-2 py-1 rounded-full text-xs ${getDificuldadeCor(desafio.dificuldade)}`}>
+                      {desafio.dificuldade}
+                    </span>
+                  </div>
+                  <h3 className="text-gray-800 mb-1">{desafio.titulo}</h3>
+                  <div className="flex items-center gap-1 text-yellow-600">
+                    <Star className="w-4 h-4 fill-current" />
+                    <span>{desafio.pontos_recompensa} pts</span>
+                  </div>
+                </Link>
+              );
+            })}
+
+            {desafios.length === 0 && (
+              <div className="col-span-full py-12 text-center text-gray-500">
+                <p>Nenhum desafio disponível no momento. Aguarde as instruções do professor!</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

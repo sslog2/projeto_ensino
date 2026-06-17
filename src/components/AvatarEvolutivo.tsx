@@ -13,9 +13,14 @@ export function AvatarEvolutivo({ nivel, tipo = 'basic', tamanho = 'lg' }: Avata
     lg: 'w-32 h-32'
   };
 
-  const cores = nivel < 5 ? 'from-gray-400 to-gray-600' :
-                nivel < 10 ? 'from-blue-400 to-blue-600' :
-                nivel < 15 ? 'from-purple-400 to-purple-600' :
+  // Mapeia o visual para o tipo escolhido (mesmo que o nível seja maior)
+  const visualNivel = tipo === 'dragon' ? 15 :
+                      tipo === 'mage' ? 10 :
+                      tipo === 'warrior' ? 5 : 1;
+
+  const cores = visualNivel < 5 ? 'from-gray-400 to-gray-600' :
+                visualNivel < 10 ? 'from-blue-400 to-blue-600' :
+                visualNivel < 15 ? 'from-purple-400 to-purple-600' :
                 'from-yellow-400 to-orange-500';
 
   return (
@@ -33,12 +38,12 @@ export function AvatarEvolutivo({ nivel, tipo = 'basic', tamanho = 'lg' }: Avata
           {/* Sorriso */}
           <path d="M 43 45 Q 50 48 57 45" stroke="#333" strokeWidth="2" fill="none" />
           
-          {/* Acessórios baseados no nível */}
-          {nivel >= 5 && (
+          {/* Acessórios baseados no visual do tipo escolhido */}
+          {visualNivel >= 5 && (
             <path d="M 35 30 L 50 25 L 65 30 L 60 35 L 40 35 Z" fill="#FFD700" />
           )}
           
-          {nivel >= 10 && (
+          {visualNivel >= 10 && (
             <>
               <rect x="30" y="55" width="8" height="20" fill="#FFD700" opacity="0.7" />
               <rect x="62" y="55" width="8" height="20" fill="#FFD700" opacity="0.7" />

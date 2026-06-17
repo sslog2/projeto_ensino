@@ -1,84 +1,84 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Search, TrendingUp, TrendingDown, AlertTriangle, Trophy, Target } from 'lucide-react';
+import { ArrowLeft, Search, TrendingUp, TrendingDown, AlertTriangle, Trophy, Target, Loader2, Star } from 'lucide-react';
 import { AvatarEvolutivo } from './AvatarEvolutivo';
+import { supabase } from '../supabaseClient';
+import { useAuth } from '../contexts/AuthContext';
 
 export function DetalheTurma() {
   const { id } = useParams();
+  const { user } = useAuth();
   const [busca, setBusca] = useState('');
   const [ordenacao, setOrdenacao] = useState<'nome' | 'pontos' | 'progresso'>('pontos');
+  
+  const [loading, setLoading] = useState(true);
+  const [turma, setTurma] = useState<any>(null);
+  const [alunos, setAlunos] = useState<any[]>([]);
 
-  const turma = {
-    id: id,
-    nome: '7º Ano A',
-    codigo: 'TURMA2024A',
-    alunos: 28,
-    metaSemanal: 85,
-    pontosTotal: 8500
-  };
-
-  const alunos = [
-    {
-      id: 1,
-      nome: 'Carlos Souza',
-      nivel: 8,
-      pontos: 2450,
-      progresso: 85,
-      ultimoAcesso: '1 hora atrás',
-      desafiosConcluidos: 18,
-      tendencia: 'up',
-      alertas: 0,
-      avatar: 'mage'
-    },
-    {
-      id: 2,
-      nome: 'Ana Lima',
-      nivel: 7,
-      pontos: 2180,
-      progresso: 78,
-      ultimoAcesso: '2 horas atrás',
-      desafiosConcluidos: 16,
-      tendencia: 'up',
-      alertas: 0,
-      avatar: 'warrior'
-    },
-    {
-      id: 3,
-      nome: 'João Silva',
-      nivel: 5,
-      pontos: 1250,
-      progresso: 60,
-      ultimoAcesso: '3 horas atrás',
-      desafiosConcluidos: 12,
-      tendencia: 'stable',
-      alertas: 0,
-      avatar: 'warrior'
-    },
-    {
-      id: 4,
-      nome: 'Maria Santos',
-      nivel: 6,
-      pontos: 1180,
-      progresso: 55,
-      ultimoAcesso: '5 horas atrás',
-      desafiosConcluidos: 11,
-      tendencia: 'down',
-      alertas: 1,
-      avatar: 'basic'
-    },
-    {
-      id: 5,
-      nome: 'Pedro Costa',
-      nivel: 5,
-      pontos: 980,
-      progresso: 48,
-      ultimoAcesso: '1 dia atrás',
-      desafiosConcluidos: 9,
-      tendencia: 'down',
-      alertas: 2,
-      avatar: 'basic'
+  useEffect(() => {
+    if (id && user) {
+      fetchDetalhesTurma();
     }
-  ];
+  }, [id, user]);
+
+  const fetchDetalhesTurma = async () => {
+    try {
+      setLoading(true);
+
+      // 1. Buscar detalhes da turma (garantindo que pertence ao professor)
+      const { data: turmaData, error: turmaError } = await supabase
+        .from('turmas')
+        .select('*')
+        .eq('id', id)
+        .eq('professor_id', user?.id)
+        .single();
+
+      if (turmaError) throw turmaError;
+      setTurma(turmaData);
+
+      // 2. Buscar alunos matriculados nesta turma
+      const { data: alunosData, error: alunosError } = await supabase
+        .from('alunos_turmas')
+        .select(`
+          aluno_id,
+          profiles:aluno_id (
+            id, nome, nivel, pontos, avatar_data
+          )
+        `)
+        .eq('turma_id', id);
+
+      if (alunosError) throw alunosError;
+
+      // 3. (Simulado) Total de desafios para simular progresso. No futuro, buscar da tabela de desafios.
+      const totalDesafiosEstimado = 15; 
+
+      const alunosFormatados = (alunosData || []).map((a: any) => {
+        const perfil = a.profiles;
+        // Simulação de métricas até cruzarmos com progresso real de forma massiva
+        const mockProgresso = Math.min(100, Math.round(((perfil.pontos || 0) / (totalDesafiosEstimado * 100)) * 100));
+        
+        return {
+          id: perfil.id,
+          nome: perfil.nome,
+          nivel: perfil.nivel || 1,
+          pontos: perfil.pontos || 0,
+          progresso: mockProgresso,
+          ultimoAcesso: 'Ativo recentemente', // Simulado
+          desafiosConcluidos: Math.floor((mockProgresso / 100) * totalDesafiosEstimado),
+          tendencia: 'stable', // Simulado
+          alertas: mockProgresso < 30 && perfil.pontos > 0 ? 1 : 0, // Regra simulada de alerta
+          avatar: perfil.avatar_data?.corpo || 'basic'
+        };
+      });
+
+      setAlunos(alunosFormatados);
+
+    } catch (error) {
+      console.error('Erro ao buscar detalhes da turma:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const alunosFiltrados = alunos
     .filter(aluno => aluno.nome.toLowerCase().includes(busca.toLowerCase()))
@@ -88,6 +88,24 @@ export function DetalheTurma() {
       if (ordenacao === 'progresso') return b.progresso - a.progresso;
       return 0;
     });
+
+  const pontosTotaisDaTurma = alunos.reduce((acc, a) => acc + a.pontos, 0);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-blue-50">
+        <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!turma) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-blue-50 text-gray-600">
+        Turma não encontrada ou você não tem permissão para acessá-la.
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
@@ -100,7 +118,9 @@ export function DetalheTurma() {
             </Link>
             <div className="flex-1">
               <h1 className="text-blue-700">{turma.nome}</h1>
-              <p className="text-gray-600">{turma.alunos} alunos • Código: {turma.codigo}</p>
+              <p className="text-gray-600 font-medium">
+                {alunos.length} alunos matriculados • Código de Acesso: <span className="text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded">{turma.codigo}</span>
+              </p>
             </div>
           </div>
         </div>
@@ -111,23 +131,25 @@ export function DetalheTurma() {
           {/* Cards de Estatísticas */}
           <div className="bg-white rounded-xl shadow-lg p-6">
             <Target className="w-8 h-8 text-blue-600 mb-2" />
-            <p className="text-gray-600 mb-1">Meta Semanal</p>
-            <p className="text-gray-900">{turma.metaSemanal}%</p>
+            <p className="text-gray-600 mb-1">Meta Coletiva</p>
+            <p className="text-gray-900 font-bold">{(turma?.meta_pontos || 500) * alunos.length} pts</p>
           </div>
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <Trophy className="w-8 h-8 text-yellow-600 mb-2" />
-            <p className="text-gray-600 mb-1">Pontos Total</p>
-            <p className="text-gray-900">{turma.pontosTotal}</p>
+          <div className="bg-white rounded-xl shadow-lg p-6 border-b-4 border-yellow-400">
+            <Trophy className="w-8 h-8 text-yellow-500 mb-2" />
+            <p className="text-gray-600 mb-1">Pontos Total Arrecadados</p>
+            <p className="text-gray-900 font-bold text-2xl">{pontosTotaisDaTurma}</p>
           </div>
           <div className="bg-white rounded-xl shadow-lg p-6">
             <TrendingUp className="w-8 h-8 text-green-600 mb-2" />
             <p className="text-gray-600 mb-1">Média de Progresso</p>
-            <p className="text-gray-900">65%</p>
+            <p className="text-gray-900 font-bold">
+              {alunos.length > 0 ? Math.round(alunos.reduce((acc, a) => acc + a.progresso, 0) / alunos.length) : 0}%
+            </p>
           </div>
           <div className="bg-white rounded-xl shadow-lg p-6">
             <AlertTriangle className="w-8 h-8 text-orange-600 mb-2" />
-            <p className="text-gray-600 mb-1">Alertas</p>
-            <p className="text-gray-900">3 alunos</p>
+            <p className="text-gray-600 mb-1">Alertas (Estimativa)</p>
+            <p className="text-gray-900 font-bold text-red-600">{alunos.filter(a => a.alertas > 0).length} alunos</p>
           </div>
         </div>
 
@@ -141,7 +163,7 @@ export function DetalheTurma() {
                   type="text"
                   value={busca}
                   onChange={(e) => setBusca(e.target.value)}
-                  placeholder="Buscar aluno..."
+                  placeholder="Buscar aluno por nome..."
                   className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
                 />
               </div>
@@ -150,107 +172,107 @@ export function DetalheTurma() {
               <select
                 value={ordenacao}
                 onChange={(e) => setOrdenacao(e.target.value as any)}
-                className="w-full md:w-auto px-4 py-3 rounded-lg border border-gray-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
+                className="w-full md:w-auto px-4 py-3 rounded-lg border border-gray-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 outline-none transition-all bg-white"
               >
-                <option value="nome">Ordenar por Nome</option>
-                <option value="pontos">Ordenar por Pontos</option>
+                <option value="pontos">Ordenar por Pontos (Maior primeiro)</option>
                 <option value="progresso">Ordenar por Progresso</option>
+                <option value="nome">Ordenar de A a Z</option>
               </select>
             </div>
           </div>
         </div>
 
         {/* Lista de Alunos */}
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+        <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-6 py-4 text-left text-gray-700">Aluno</th>
-                  <th className="px-6 py-4 text-left text-gray-700">Nível</th>
-                  <th className="px-6 py-4 text-left text-gray-700">Pontos</th>
-                  <th className="px-6 py-4 text-left text-gray-700">Progresso</th>
-                  <th className="px-6 py-4 text-left text-gray-700">Desafios</th>
-                  <th className="px-6 py-4 text-left text-gray-700">Último Acesso</th>
-                  <th className="px-6 py-4 text-left text-gray-700">Status</th>
-                  <th className="px-6 py-4 text-left text-gray-700">Ações</th>
+                  <th className="px-6 py-4 text-left text-gray-700 font-semibold uppercase text-xs tracking-wider">Aluno</th>
+                  <th className="px-6 py-4 text-center text-gray-700 font-semibold uppercase text-xs tracking-wider">Nível</th>
+                  <th className="px-6 py-4 text-right text-gray-700 font-semibold uppercase text-xs tracking-wider">Pontos</th>
+                  <th className="px-6 py-4 text-left text-gray-700 font-semibold uppercase text-xs tracking-wider">Progresso Est.</th>
+                  <th className="px-6 py-4 text-center text-gray-700 font-semibold uppercase text-xs tracking-wider">Status</th>
+                  <th className="px-6 py-4 text-right text-gray-700 font-semibold uppercase text-xs tracking-wider">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-gray-100">
                 {alunosFiltrados.map((aluno) => (
-                  <tr key={aluno.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={aluno.id} className="hover:bg-blue-50/50 transition-colors">
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-4">
                         <AvatarEvolutivo nivel={aluno.nivel} tipo={aluno.avatar} tamanho="sm" />
                         <div>
-                          <p className="text-gray-800">{aluno.nome}</p>
+                          <p className="text-gray-900 font-medium">{aluno.nome}</p>
                           {aluno.alertas > 0 && (
                             <div className="flex items-center gap-1 text-orange-600 mt-1">
-                              <AlertTriangle className="w-3 h-3" />
-                              <span className="text-xs">{aluno.alertas} alerta(s)</span>
+                              <AlertTriangle className="w-3.5 h-3.5" />
+                              <span className="text-xs font-medium">{aluno.alertas} alerta(s) de atenção</span>
                             </div>
                           )}
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <span className="text-gray-700">{aluno.nivel}</span>
+                    <td className="px-6 py-4 text-center">
+                      <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">{aluno.nivel}</span>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-1">
-                        <span className="text-gray-700">{aluno.pontos}</span>
-                        {aluno.tendencia === 'up' && <TrendingUp className="w-4 h-4 text-green-600" />}
-                        {aluno.tendencia === 'down' && <TrendingDown className="w-4 h-4 text-red-600" />}
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-1.5 text-yellow-600">
+                        <Star className="w-4 h-4 fill-current" />
+                        <span className="font-bold text-gray-900">{aluno.pontos}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="w-32">
-                        <div className="flex justify-between text-xs text-gray-600 mb-1">
+                        <div className="flex justify-between text-xs font-medium text-gray-600 mb-1.5">
+                          <span>Estimativa</span>
                           <span>{aluno.progresso}%</span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="w-full bg-gray-100 rounded-full h-2">
                           <div
-                            className={`h-2 rounded-full ${
+                            className={`h-2 rounded-full transition-all ${
                               aluno.progresso >= 70 ? 'bg-green-500' :
-                              aluno.progresso >= 50 ? 'bg-yellow-500' :
-                              'bg-red-500'
+                              aluno.progresso >= 40 ? 'bg-yellow-400' :
+                              'bg-orange-500'
                             }`}
                             style={{ width: `${aluno.progresso}%` }}
                           />
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <span className="text-gray-700">{aluno.desafiosConcluidos}/25</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-gray-600">{aluno.ultimoAcesso}</span>
-                    </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 text-center">
                       {aluno.alertas > 0 ? (
-                        <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded-full">
+                        <span className="px-3 py-1 bg-orange-100 text-orange-800 text-xs font-bold rounded-full uppercase tracking-wide">
                           Atenção
                         </span>
                       ) : aluno.progresso >= 70 ? (
-                        <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
+                        <span className="px-3 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full uppercase tracking-wide">
                           Ótimo
                         </span>
                       ) : (
-                        <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full">
+                        <span className="px-3 py-1 bg-gray-100 text-gray-600 text-xs font-bold rounded-full uppercase tracking-wide">
                           Regular
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 text-right">
                       <Link
                         to={`/aluno/${aluno.id}`}
-                        className="text-blue-600 hover:text-blue-700"
+                        className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-2 rounded-lg transition-colors"
                       >
-                        Ver Detalhes
+                        Relatório Completo
                       </Link>
                     </td>
                   </tr>
                 ))}
+                
+                {alunosFiltrados.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center text-gray-500 italic bg-gray-50">
+                      Nenhum aluno encontrado nesta turma. Compartilhe o código <span className="font-bold text-blue-600">{turma.codigo}</span> com eles!
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

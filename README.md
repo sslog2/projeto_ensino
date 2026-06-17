@@ -7,9 +7,6 @@ Uma plataforma educacional gamificada para ensino de lógica de programação, c
 ## Time
 José Liedson da Silva, José Matheus Mendonça Farias, Márcio Souto Maior Sousa, Maria Clara Lau Santos
 
-## Figma
-https://www.figma.com/design/FzDK08KsimtBFhY1TJ1JNb/Collage-Editor-Design
-
 ## Funcionalidades
 
 ### Para Alunos
@@ -18,7 +15,6 @@ https://www.figma.com/design/FzDK08KsimtBFhY1TJ1JNb/Collage-Editor-Design
 - Editor de blocos visual
 - Avatar evolutivo personalizável
 - Sistema de conquistas e ranking
-- Missões colaborativas
 
 ### Para Professores
 - Dashboard com estatísticas das turmas
@@ -30,11 +26,26 @@ https://www.figma.com/design/FzDK08KsimtBFhY1TJ1JNb/Collage-Editor-Design
 ## Tecnologias
 
 - React 18 + TypeScript
-- React Router para navegação
-- Vite como bundler
+- Supabase (Autenticação e Banco de Dados)
 - Tailwind CSS para estilização
-- Radix UI para componentes acessíveis
 - Lucide React para ícones
+
+## Configuração do Banco de Dados
+
+Este projeto utiliza o **Supabase** como backend. Para configurar o seu próprio ambiente:
+
+1. Crie um projeto no [Supabase](https://supabase.com/).
+2. No seu painel do Supabase, vá em **SQL Editor**.
+3. Copie o conteúdo do arquivo `schema.sql` (disponível na raiz deste projeto) e cole no editor.
+4. Execute o código SQL para criar todas as tabelas, relacionamentos e permissões necessárias.
+
+### Variáveis de Ambiente
+
+1. Copie o arquivo de exemplo para criar o seu arquivo local:
+   ```bash
+   cp .env_example .env
+   ```
+2. Abra o arquivo `.env` e preencha com as suas credenciais do Supabase (URL e Anon Key).
 
 ## Como executar
 
