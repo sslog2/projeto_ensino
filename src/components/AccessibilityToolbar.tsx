@@ -21,8 +21,8 @@ export const AccessibilityToolbar = () => {
   } = useAccessibility();
 
   return (
-    <div className="accessibility-toolbar bg-white dark:bg-zinc-900 border-b p-2 flex items-center justify-center gap-4 sticky top-0 z-[100] shadow-sm print:hidden">
-      <div className="flex items-center gap-2 border-r pr-4">
+    <div className="accessibility-toolbar bg-white dark:bg-zinc-900 border-b p-2 flex flex-wrap sm:flex-nowrap items-center justify-center gap-2 sm:gap-4 sticky top-0 z-[100] shadow-sm print:hidden">
+      <div className="flex items-center gap-2 border-r-0 sm:border-r pr-0 sm:pr-4">
         <span className="text-sm font-medium flex items-center gap-1">
           <Type size={16} color="currentColor" /> Fonte:
         </span>
@@ -44,17 +44,17 @@ export const AccessibilityToolbar = () => {
         </Tooltip>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button 
               variant={highContrast ? "default" : "outline"} 
               size="sm"
-              className="h-8"
+              className="h-8 text-xs sm:text-sm"
               onClick={toggleHighContrast}
               aria-pressed={highContrast}
             >
-              <Contrast size={16} className="mr-2" color="currentColor" />
+              <Contrast size={16} className="mr-1 sm:mr-2" color="currentColor" />
               Alto Contraste
             </Button>
           </TooltipTrigger>
@@ -66,11 +66,11 @@ export const AccessibilityToolbar = () => {
             <Button 
               variant={focusMode ? "default" : "outline"} 
               size="sm"
-              className="h-8"
+              className="h-8 text-xs sm:text-sm"
               onClick={toggleFocusMode}
               aria-pressed={focusMode}
             >
-              <Focus size={16} className="mr-2" color="currentColor" />
+              <Focus size={16} className="mr-1 sm:mr-2" color="currentColor" />
               Modo Foco
             </Button>
           </TooltipTrigger>

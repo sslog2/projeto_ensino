@@ -125,20 +125,24 @@ export function GerenciamentoTurmas() {
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center gap-4">
-            <Link to="/dashboard-professor" className="text-gray-600 hover:text-gray-900">
-              <ArrowLeft className="w-6 h-6" />
-            </Link>
-            <div className="flex-1">
-              <h1 className="text-blue-700">Gerenciamento de Turmas</h1>
-              <p className="text-gray-600">Crie e gerencie suas turmas</p>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+              <Link to="/dashboard-professor" className="text-gray-600 hover:text-gray-900 flex-shrink-0">
+                <ArrowLeft className="w-6 h-6" />
+              </Link>
+              <div className="min-w-0">
+                <h1 className="text-blue-700 font-bold truncate text-sm sm:text-base md:text-xl">Gerenciamento de Turmas</h1>
+                <p className="text-gray-600 text-xs sm:text-sm truncate hidden sm:block">Crie e gerencie suas turmas</p>
+              </div>
             </div>
             <button
               onClick={() => setMostrarModal(true)}
-              className="btn-nova-turma flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="btn-nova-turma flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex-shrink-0 text-sm"
+              title="Nova Turma"
             >
-              <Plus className="w-5 h-5" />
-              Nova Turma
+              <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="hidden sm:inline">Nova Turma</span>
+              <span className="inline sm:hidden">Nova</span>
             </button>
           </div>
         </div>

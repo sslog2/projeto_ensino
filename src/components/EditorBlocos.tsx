@@ -361,22 +361,23 @@ export function EditorBlocos() {
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50">
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link to="/mapa-desafios" className="text-gray-600 hover:text-gray-900">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+              <Link to="/mapa-desafios" className="text-gray-600 hover:text-gray-900 flex-shrink-0">
                 <ArrowLeft className="w-6 h-6" />
               </Link>
-              <div>
-                <h1 className="text-purple-700">{desafio.titulo}</h1>
-                <p className="text-gray-600">{desafio.objetivo}</p>
+              <div className="min-w-0">
+                <h1 className="text-purple-700 font-bold truncate text-sm sm:text-base md:text-xl" title={desafio.titulo}>{desafio.titulo}</h1>
+                <p className="text-gray-600 text-xs sm:text-sm truncate hidden sm:block">{desafio.objetivo}</p>
               </div>
             </div>
             <button
               onClick={() => setMostrarDica(!mostrarDica)}
-              className="flex items-center gap-2 px-4 py-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-colors"
+              className="flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-colors flex-shrink-0 text-sm"
+              title="Dica"
             >
               <Lightbulb className="w-4 h-4" />
-              Dica
+              <span>Dica</span>
             </button>
           </div>
         </div>

@@ -111,25 +111,32 @@ export function DashboardProfessor() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
       <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Code2 className="w-8 h-8 text-blue-600" />
-            <div>
-              <p className="text-gray-600">Dashboard do Professor</p>
-              <h1 className="text-blue-700">{user?.nome}</h1>
+        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+            <Code2 className="w-8 h-8 text-blue-600 flex-shrink-0" />
+            <div className="min-w-0">
+              <p className="text-gray-600 text-xs sm:text-sm">Dashboard do Professor</p>
+              <h1 className="text-blue-700 font-bold truncate text-sm sm:text-base md:text-xl" title={user?.nome}>{user?.nome}</h1>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
             <Link 
               to="/professor/criar-desafio"
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex-shrink-0 text-sm"
+              title="Criar Desafio"
             >
-              <Plus className="w-5 h-5" />
-              Criar Desafio
+              <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="hidden sm:inline">Criar Desafio</span>
+              <span className="inline sm:hidden">Criar</span>
             </Link>
-            <button onClick={logout} className="btn-logout flex items-center gap-2 text-gray-600 hover:text-gray-900">
-              <LogOut className="w-5 h-5" />
-              Sair
+            <button 
+              onClick={logout} 
+              className="btn-logout flex items-center gap-2 text-gray-600 hover:text-gray-900 flex-shrink-0 text-sm sm:text-base"
+              aria-label="Sair da conta"
+              title="Sair"
+            >
+              <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="hidden sm:inline">Sair</span>
             </button>
           </div>
         </div>

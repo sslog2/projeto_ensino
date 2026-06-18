@@ -156,17 +156,22 @@ export function DashboardAluno() {
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50">
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Code2 className="w-8 h-8 text-purple-600" />
-            <div>
-              <p className="text-gray-600">Olá,</p>
-              <h1 className="text-purple-700 font-bold">{user?.nome}</h1>
+        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+            <Code2 className="w-8 h-8 text-purple-600 flex-shrink-0" />
+            <div className="min-w-0">
+              <p className="text-gray-600 text-xs sm:text-sm">Olá,</p>
+              <h1 className="text-purple-700 font-bold truncate text-sm sm:text-base md:text-xl" title={user?.nome}>{user?.nome}</h1>
             </div>
           </div>
-          <button onClick={logout} className="btn-logout flex items-center gap-2 text-gray-600 hover:text-gray-900">
+          <button 
+            onClick={logout} 
+            className="btn-logout flex items-center gap-2 text-gray-600 hover:text-gray-900 flex-shrink-0 text-sm sm:text-base"
+            aria-label="Sair da conta"
+            title="Sair"
+          >
             <LogOut className="w-5 h-5" />
-            Sair
+            <span className="hidden sm:inline">Sair</span>
           </button>
         </div>
       </header>

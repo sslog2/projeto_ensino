@@ -118,20 +118,22 @@ export function CriarDesafio() {
   return (
     <div className="min-h-screen bg-gray-50 pb-12">
       <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link to="/dashboard-professor" className="text-gray-600 hover:text-gray-900">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+            <Link to="/dashboard-professor" className="text-gray-600 hover:text-gray-900 flex-shrink-0">
               <ArrowLeft className="w-6 h-6" />
             </Link>
-            <h1 className="text-blue-700 font-bold">Criar Novo Desafio</h1>
+            <h1 className="text-blue-700 font-bold truncate text-sm sm:text-base md:text-xl">Criar Novo Desafio</h1>
           </div>
           <button
             onClick={handleSalvar}
             disabled={loading}
-            className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all disabled:opacity-50"
+            className="flex items-center gap-2 px-3 py-2 sm:px-6 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all disabled:opacity-50 flex-shrink-0 text-sm"
+            aria-label="Salvar Desafio"
+            title="Salvar Desafio"
           >
-            <Save className="w-5 h-5" />
-            {loading ? 'Salvando...' : 'Salvar Desafio'}
+            <Save className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span>{loading ? 'Salvando...' : 'Salvar'}</span>
           </button>
         </div>
       </header>
