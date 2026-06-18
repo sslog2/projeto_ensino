@@ -49,24 +49,41 @@ export function DetalheTurma() {
 
       if (alunosError) throw alunosError;
 
-      // 3. (Simulado) Total de desafios para simular progresso. No futuro, buscar da tabela de desafios.
-      const totalDesafiosEstimado = 15; 
+      // 3. Buscar total de desafios
+      const { count: totalDesafios } = await supabase
+        .from('desafios')
+        .select('*', { count: 'exact', head: true });
+
+      const totalD = totalDesafios || 1;
+
+      // 4. Buscar progresso real dos alunos desta turma
+      const idsAlunos = (alunosData || []).map((a: any) => a.aluno_id);
+      const { data: progressoData } = await supabase
+        .from('progresso_alunos')
+        .select('aluno_id, concluido, tentativas')
+        .in('aluno_id', idsAlunos);
 
       const alunosFormatados = (alunosData || []).map((a: any) => {
         const perfil = a.profiles;
-        // Simulação de métricas até cruzarmos com progresso real de forma massiva
-        const mockProgresso = Math.min(100, Math.round(((perfil.pontos || 0) / (totalDesafiosEstimado * 100)) * 100));
+        const progressoAluno = (progressoData || []).filter(p => p.aluno_id === perfil.id);
+        
+        const concluidos = progressoAluno.filter(p => p.concluido).length;
+        const progressoReal = Math.min(100, Math.round((concluidos / totalD) * 100));
+        
+        // Alerta Real: Mais de 3 tentativas em qualquer desafio não concluído
+        const temDificuldade = progressoAluno.some(p => !p.concluido && p.tentativas > 3);
         
         return {
           id: perfil.id,
           nome: perfil.nome,
           nivel: perfil.nivel || 1,
           pontos: perfil.pontos || 0,
-          progresso: mockProgresso,
+          progresso: progressoReal,
           ultimoAcesso: 'Ativo recentemente', // Simulado
-          desafiosConcluidos: Math.floor((mockProgresso / 100) * totalDesafiosEstimado),
+          desafiosConcluidos: concluidos,
           tendencia: 'stable', // Simulado
-          alertas: mockProgresso < 30 && perfil.pontos > 0 ? 1 : 0, // Regra simulada de alerta
+          alertas: temDificuldade ? 1 : 0,
+          alertasMotivo: temDificuldade ? 'Dificuldade detectada (> 3 tentativas)' : '',
           avatar: perfil.avatar_data?.corpo || 'basic'
         };
       });
@@ -205,9 +222,9 @@ export function DetalheTurma() {
                         <div>
                           <p className="text-gray-900 font-medium">{aluno.nome}</p>
                           {aluno.alertas > 0 && (
-                            <div className="flex items-center gap-1 text-orange-600 mt-1">
+                            <div className="flex items-center gap-1 text-orange-600 mt-1" title={aluno.alertasMotivo}>
                               <AlertTriangle className="w-3.5 h-3.5" />
-                              <span className="text-xs font-medium">{aluno.alertas} alerta(s) de atenção</span>
+                              <span className="text-xs font-medium">{aluno.alertasMotivo || `${aluno.alertas} alerta(s) de atenção`}</span>
                             </div>
                           )}
                         </div>

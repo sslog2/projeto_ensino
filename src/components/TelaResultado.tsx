@@ -13,6 +13,10 @@ export function TelaResultado() {
   const sucesso = searchParams.get('sucesso') === 'true';
   const pontos = parseInt(searchParams.get('pontos') || '0');
   const estrelasUrl = parseInt(searchParams.get('estrelas') || (sucesso ? '3' : '1'));
+  const tempo = searchParams.get('tempo') || '0s';
+  const tentativas = searchParams.get('tentativas') || '1';
+  const medalhasParam = searchParams.get('medalhas');
+  const medalhas = medalhasParam ? medalhasParam.split(',') : [];
 
   const progressoInfo = calcularProgressoNivel((user?.pontos || 0) + (sucesso ? pontos : 0));
 
@@ -20,9 +24,9 @@ export function TelaResultado() {
     sucesso,
     pontos,
     estrelas: estrelasUrl,
-    tempoExecucao: '12s',
-    tentativas: 3,
-    medalhas: sucesso ? ['Primeira Tentativa', 'Código Eficiente'] : [],
+    tempoExecucao: tempo,
+    tentativas: tentativas,
+    medalhas: medalhas,
     progressoNivel: progressoInfo.porcentagem,
     pontosRestantes: progressoInfo.pontosRestantes
   };

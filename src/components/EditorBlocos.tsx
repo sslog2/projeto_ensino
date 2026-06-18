@@ -191,6 +191,7 @@ export function EditorBlocos() {
       }
 
       // 3. Salvar o novo progresso
+      const totalTentativas = (progressoAnterior?.tentativas || 0) + 1;
       const { error } = await supabase
         .from('progresso_alunos')
         .upsert({
@@ -198,7 +199,7 @@ export function EditorBlocos() {
           desafio_id: parseInt(id!),
           concluido: sucesso || (progressoAnterior?.concluido || false),
           pontuacao_obtida: Math.max(pontosAtuais, progressoAnterior?.pontuacao_obtida || 0),
-          tentativas: (progressoAnterior?.tentativas || 0) + 1,
+          tentativas: totalTentativas,
           tempo_segundos: tempo || (progressoAnterior?.tempo_segundos || null),
           estrelas_obtidas: Math.max(estrelas || 0, progressoAnterior?.estrelas_obtidas || 0),
           data_conclusao: sucesso ? new Date().toISOString() : (progressoAnterior?.data_conclusao || null)
@@ -206,12 +207,12 @@ export function EditorBlocos() {
           onConflict: 'aluno_id, desafio_id'
         });
 
-      return pontosGanhosReais;
+      return { pontosGanhosReais, totalTentativas, jaConcluido: progressoAnterior?.concluido || false };
 
     } catch (error) {
       console.error('Erro ao salvar progresso:', error);
       alert('Aviso: Seu progresso pode não ter sido salvo. Verifique sua conexão.');
-      return 0; // Em caso de erro, não dá pontos para evitar problemas
+      return { pontosGanhosReais: 0, totalTentativas: 1, jaConcluido: false }; 
     }
   };
 
@@ -312,10 +313,22 @@ export function EditorBlocos() {
       pontosBase + (totalEstrelasColetadas * bonusPorEstrela) - (blocosSolucao.length * penalidadePorBloco)
     );
 
-    const pontosGanhosReais = await salvarProgresso(true, pontuacaoFinal, tempoGasto, totalEstrelasColetadas);
+    const { pontosGanhosReais, totalTentativas } = await salvarProgresso(true, pontuacaoFinal, tempoGasto, totalEstrelasColetadas);
+
+    // Calcular Conquistas Reais (Medalhas)
+    const medalhas = [];
+    if (totalTentativas === 1) medalhas.push('Primeira Tentativa');
+    
+    // Regra de eficiência: usou menos ou igual ao limite de blocos sugerido (padrão 8 se não definido)
+    const limiteEficiente = desafio.regras?.max_blocos || 8;
+    if (blocosSolucao.length <= limiteEficiente) medalhas.push('Código Eficiente');
+    
+    const totalEstrelasNoNivel = desafio.config_tabuleiro?.stars?.length || 0;
+    if (totalEstrelasNoNivel > 0 && totalEstrelasColetadas === totalEstrelasNoNivel) {
+      medalhas.push('Colecionador de Estrelas');
+    }
 
     // Calcular Rating de Estrelas (Visual)
-    const totalEstrelasNoNivel = desafio.config_tabuleiro?.stars?.length || 0;
     let estrelasRating = 1; // Mínimo 1 por chegar no objetivo
     
     if (totalEstrelasNoNivel === 0 || totalEstrelasColetadas === totalEstrelasNoNivel) {
@@ -324,7 +337,8 @@ export function EditorBlocos() {
       estrelasRating = 2;
     }
 
-    navigate(`/resultado/${id}?sucesso=true&pontos=${pontosGanhosReais}&estrelas=${estrelasRating}`);
+    const medalhasUrl = medalhas.join(',');
+    navigate(`/resultado/${id}?sucesso=true&pontos=${pontosGanhosReais}&estrelas=${estrelasRating}&tempo=${tempoGasto}s&tentativas=${totalTentativas}&medalhas=${medalhasUrl}`);
   };
   if (loading) {
     return (
