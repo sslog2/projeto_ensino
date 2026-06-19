@@ -36,6 +36,12 @@ CREATE OR REPLACE FUNCTION "public"."handle_new_user"() RETURNS "trigger"
 
 ALTER FUNCTION "public"."handle_new_user"() OWNER TO "postgres";
 
+-- Trigger para criar perfil automaticamente após o cadastro no auth.users
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
 SET default_tablespace = '';
 
 SET default_table_access_method = "heap";
@@ -523,9 +529,33 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TAB
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "authenticated";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "service_role";
 
+-- =========================================================================
+-- CONFIGURAÇÃO DE STORAGE (BUCKETS E POLÍTICAS)
+-- =========================================================================
 
+-- Cria o bucket 'atividades_anexos' se não existir
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('atividades_anexos', 'atividades_anexos', true)
+ON CONFLICT (id) DO NOTHING;
 
+-- Habilitar RLS no storage.objects
+ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 
+-- Políticas para o bucket 'atividades_anexos'
+DROP POLICY IF EXISTS "Permitir acesso público de leitura" ON storage.objects;
+CREATE POLICY "Permitir acesso público de leitura"
+ON storage.objects FOR SELECT
+TO public
+USING (bucket_id = 'atividades_anexos');
 
+DROP POLICY IF EXISTS "Permitir inserção para usuários autenticados" ON storage.objects;
+CREATE POLICY "Permitir inserção para usuários autenticados"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (bucket_id = 'atividades_anexos');
 
-
+DROP POLICY IF EXISTS "Permitir exclusão para usuários autenticados" ON storage.objects;
+CREATE POLICY "Permitir exclusão para usuários autenticados"
+ON storage.objects FOR DELETE
+TO authenticated
+USING (bucket_id = 'atividades_anexos');
